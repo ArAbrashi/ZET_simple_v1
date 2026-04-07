@@ -12,7 +12,7 @@ T = len(prices)                     # 168 sati (7 dana)
 # Parametri baterije
 P_bat = 0.5     # MW - max snaga punjenja/pražnjenja
 E_bat = 50.0    # MWh - kapacitet baterije
-SOC_init = 0.25 # % - početno stanje napunjenosti (0-100%)
+SOC_init = 15.0 # % - početno stanje napunjenosti (0-100%)
 P_grid_max = 3.0  # MW - max snaga povlačenja iz mreže
 PENALTY_DEFICIT = 100000.0  # EUR/MWh - kazneni trošak za manjak EE
 
@@ -72,7 +72,8 @@ for t in range(T):
 h.addVars(num_vars, col_lower, col_upper)
 
 # Postavi funkciju cilja (minimize)
-h.changeColsCostByRange(0, num_vars - 1, col_cost)
+for i in range(num_vars):
+    h.changeColCost(i, col_cost[i])
 h.changeObjectiveSense(highspy.ObjSense.kMinimize)
 
 # Ograničenja:
