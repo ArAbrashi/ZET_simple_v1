@@ -12,12 +12,13 @@ aFRRplus = data["aFRRplus"]         # MW - ponuđena snaga pozitivne regulacije
 aFRRminus = data["aFRRminus"]      # MW - ponuđena snaga negativne regulacije
 T = len(prices)                     # 168 sati (7 dana)
 
-# Parametri baterije
-P_bat = 2.0     # MW - max snaga punjenja/pražnjenja
-E_bat = 5.0    # MWh - kapacitet baterije
-SOC_init = 15.0 # % - početno stanje napunjenosti (0-100%)
-P_grid_max = 3.0  # MW - max snaga povlačenja iz mreže
-PENALTY_DEFICIT = 100000.0  # EUR/MWh - kazneni trošak za manjak EE
+# Parametri iz JSON-a
+params = data["parameters"]
+P_bat = params["P_bat"]                     # MW - max snaga punjenja/pražnjenja
+E_bat = params["E_bat"]                     # MWh - kapacitet baterije
+SOC_init = params["SOC_init"]               # % - početno stanje napunjenosti (0-100%)
+P_grid_max = params["P_grid_max"]           # MW - max snaga povlačenja iz mreže
+PENALTY_DEFICIT = params["PENALTY_DEFICIT"] # EUR/MWh - kazneni trošak za manjak EE
 
 # Kreiranje HiGHS modela
 h = highspy.Highs()

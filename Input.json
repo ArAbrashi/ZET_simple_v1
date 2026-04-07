@@ -3,6 +3,13 @@
   "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
   "price_unit": "EUR/MWh",
   "consumption_unit": "MW",
+  "parameters": {
+    "P_bat": 2.0,
+    "E_bat": 5.0,
+    "SOC_init": 15.0,
+    "P_grid_max": 3.0,
+    "PENALTY_DEFICIT": 100000.0
+  },
   "prices": [
     45.2, 42.1, 40.5, 39.8, 40.2, 48.6, 62.3, 78.5, 85.4, 82.1, 76.3, 72.8,
     70.5, 68.9, 65.4, 63.2, 67.8, 75.6, 88.2, 91.5, 82.4, 68.7, 55.3, 48.1,
