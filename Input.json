@@ -10,7 +10,8 @@
     "P_grid_max": 3.0,
     "PENALTY_DEFICIT": 100000.0,
     "verbose": true,
-    "P_solar_installed": 2.5
+    "P_solar_installed": 2.5,
+    "n_bat_min": 3
   },
   "prices": [
     45.2, 42.1, 40.5, 39.8, 40.2, 48.6, 62.3, 78.5, 85.4, 82.1, 76.3, 72.8,

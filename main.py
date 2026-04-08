@@ -22,6 +22,7 @@ SOC_init = params["SOC_init"]               # % - početno stanje napunjenosti (
 P_grid_max = params["P_grid_max"]           # MW - max snaga povlačenja iz mreže
 PENALTY_DEFICIT = params["PENALTY_DEFICIT"] # EUR/MWh - kazneni trošak za manjak EE
 P_solar_inst = params["P_solar_installed"]  # MW - instalirana snaga solarne elektrane
+n_bat_min = params["n_bat_min"]             # h - min broj sati u istom režimu (punjenje/pražnjenje)
 
 # Stvarna solarna proizvodnja u MW (normalizirani profil 0-1 * instalirana snaga u MW)
 solar_prod = [s * P_solar_inst for s in solar_norm]  # MW
@@ -43,21 +44,25 @@ inf = highspy.kHighsInf
 #   soc[t]         - stanje napunjenosti [15, 90] %           t = 0..T-1
 #   p_deficit[t]   - manjak EE [0, inf) MW                    t = 0..T-1
 #   p_curtail[t]   - curtailment solarne el. [0, solar_prod]  t = 0..T-1
+#   y_chg[t]       - binarna: 1=punjenje aktivno             t = 0..T-1
+#   y_dis[t]       - binarna: 1=pražnjenje aktivno           t = 0..T-1
 
-num_vars = 6 * T
+num_vars = 8 * T
 col_lower = []
 col_upper = []
 col_cost = []
 
 # Indeksi varijabli - grupirani po satu:
 #   t=0: [grid_0, charge_0, discharge_0, soc_0], t=1: [grid_1, charge_1, ...], ...
-N_VAR_PER_T = 6
+N_VAR_PER_T = 8
 def idx_grid(t):      return N_VAR_PER_T * t
 def idx_charge(t):    return N_VAR_PER_T * t + 1
 def idx_discharge(t): return N_VAR_PER_T * t + 2
 def idx_soc(t):       return N_VAR_PER_T * t + 3
 def idx_deficit(t):   return N_VAR_PER_T * t + 4
 def idx_curtail(t):   return N_VAR_PER_T * t + 5
+def idx_ychg(t):      return N_VAR_PER_T * t + 6
+def idx_ydis(t):      return N_VAR_PER_T * t + 7
 
 for t in range(T):
     # p_grid[t]
@@ -90,7 +95,22 @@ for t in range(T):
     col_upper.append(solar_prod[t])
     col_cost.append(0.0)
 
+    # y_chg[t] - binarna: 1 ako baterija puni u satu t
+    col_lower.append(0.0)
+    col_upper.append(1.0)
+    col_cost.append(0.0)
+
+    # y_dis[t] - binarna: 1 ako baterija prazni u satu t
+    col_lower.append(0.0)
+    col_upper.append(1.0)
+    col_cost.append(0.0)
+
 h.addVars(num_vars, col_lower, col_upper)
+
+# Postavi y_chg i y_dis kao binarne (integer) varijable
+for t in range(T):
+    h.changeColIntegrality(idx_ychg(t), highspy.HighsVarType.kInteger)
+    h.changeColIntegrality(idx_ydis(t), highspy.HighsVarType.kInteger)
 
 # Postavi funkciju cilja (minimize)
 for i in range(num_vars):
@@ -179,6 +199,41 @@ for t in range(T):
     indices = [idx_charge(t)]
     values = [1.0]
     h.addRow(-inf, P_bat - aFRRminus[t], len(indices), indices, values)
+
+# 5) Zabrana istovremenog punjenja i pražnjenja + minimalno trajanje režima:
+#    y_chg[t] + y_dis[t] <= 1              (ne može oboje u istom satu)
+#    p_charge[t]    <= P_bat * y_chg[t]    (punjenje samo ako y_chg=1)
+#    p_discharge[t] <= P_bat * y_dis[t]    (pražnjenje samo ako y_dis=1)
+for t in range(T):
+    # Međusobna isključivost: y_chg + y_dis <= 1
+    indices = [idx_ychg(t), idx_ydis(t)]
+    values = [1.0, 1.0]
+    h.addRow(-inf, 1.0, len(indices), indices, values)
+
+    # Punjenje samo ako y_chg=1: p_charge - P_bat*y_chg <= 0
+    indices = [idx_charge(t), idx_ychg(t)]
+    values = [1.0, -P_bat]
+    h.addRow(-inf, 0.0, len(indices), indices, values)
+
+    # Pražnjenje samo ako y_dis=1: p_discharge - P_bat*y_dis <= 0
+    indices = [idx_discharge(t), idx_ydis(t)]
+    values = [1.0, -P_bat]
+    h.addRow(-inf, 0.0, len(indices), indices, values)
+
+# 6) Minimalno trajanje režima (n_bat_min sati):
+#    Ako se puni u satu t, ne smije se prazniti u sljedećih n_bat_min-1 sati, i obrnuto.
+#    Mirovanje (y_chg=0 i y_dis=0) ne smeta.
+for t in range(T):
+    for k in range(t + 1, min(t + n_bat_min, T)):
+        # Ako puni u t, ne prazni u k: y_chg[t] + y_dis[k] <= 1
+        indices = [idx_ychg(t), idx_ydis(k)]
+        values = [1.0, 1.0]
+        h.addRow(-inf, 1.0, len(indices), indices, values)
+
+        # Ako prazni u t, ne puni u k: y_dis[t] + y_chg[k] <= 1
+        indices = [idx_ydis(t), idx_ychg(k)]
+        values = [1.0, 1.0]
+        h.addRow(-inf, 1.0, len(indices), indices, values)
 
 # Rješavanje
 h.run()
