@@ -10,7 +10,7 @@ import os
 import subprocess
 import sys
 
-PORT = 8000
+PORT = 8002
 DIR = os.path.dirname(os.path.abspath(__file__))
 
 
