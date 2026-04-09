@@ -1,0 +1,1448 @@
+<!DOCTYPE html>
+<html lang="hr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Podravka BESS — Input Editor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-dragdata@2.3.0/dist/chartjs-plugin-dragdata.min.js"></script>
+<style>
+  :root {
+    --blue-deep: #0a1628;
+    --blue-mid: #1a3a5c;
+    --blue-accent: #3b82f6;
+    --blue-glow: #60a5fa;
+    --blue-pale: #dbeafe;
+    --cream: #f8f6f1;
+    --white: #ffffff;
+    --border: #e8e4de;
+    --border-hover: #d4cfc8;
+    --text-dark: #1e293b;
+    --text-body: #475569;
+    --text-muted: #94a3b8;
+    --cyan: #0ea5e9;
+    --amber: #f59e0b;
+    --emerald: #10b981;
+    --rose: #f43f5e;
+    --violet: #8b5cf6;
+    --orange: #f97316;
+    --sky: #38bdf8;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Outfit', sans-serif;
+    background: var(--cream);
+    color: var(--text-dark);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── HEADER ── */
+  .top-header {
+    position: relative;
+    background: linear-gradient(135deg, var(--blue-deep) 0%, var(--blue-mid) 50%, #1e4d7b 100%);
+    color: white;
+    overflow: hidden;
+  }
+
+  .top-header::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 600px 400px at 20% 80%, rgba(59,130,246,0.15), transparent),
+      radial-gradient(ellipse 500px 500px at 80% 20%, rgba(96,165,250,0.1), transparent);
+    pointer-events: none;
+  }
+
+  .top-header::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+  }
+
+  .header-orb {
+    position: absolute;
+    width: 400px;
+    height: 400px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(59,130,246,0.12), transparent 70%);
+    top: -120px;
+    right: -60px;
+    animation: drift 12s ease-in-out infinite alternate;
+    pointer-events: none;
+  }
+
+  .header-orb-2 {
+    width: 250px;
+    height: 250px;
+    top: auto;
+    right: auto;
+    bottom: -80px;
+    left: 5%;
+    animation-duration: 16s;
+    animation-delay: -4s;
+  }
+
+  @keyframes drift {
+    0% { transform: translate(0, 0) scale(1); }
+    100% { transform: translate(30px, 20px) scale(1.08); }
+  }
+
+  .header-inner {
+    position: relative;
+    z-index: 10;
+    max-width: 1500px;
+    margin: 0 auto;
+    padding: 28px 40px 36px;
+  }
+
+  .header-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    animation: fadeDown 0.8s ease-out both;
+  }
+
+  .header-nav-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .logo-mark {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.95);
+    border: 1px solid rgba(255,255,255,0.3);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.15), 0 0 0 1px rgba(255,255,255,0.1);
+  }
+
+  .logo-mark img {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+  }
+
+  .logo-text {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.4rem;
+    letter-spacing: -0.02em;
+  }
+
+  .logo-text span { color: var(--blue-glow); }
+
+  .actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    animation: fadeDown 0.8s ease-out 0.1s both;
+  }
+
+  .btn {
+    font-size: 0.8rem;
+    font-weight: 500;
+    padding: 9px 18px;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.7);
+    cursor: pointer;
+    transition: all 0.25s;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    backdrop-filter: blur(8px);
+  }
+
+  .btn:hover {
+    background: rgba(255,255,255,0.15);
+    color: white;
+    border-color: rgba(255,255,255,0.25);
+  }
+
+  .btn-primary {
+    background: var(--blue-accent);
+    border-color: var(--blue-accent);
+    color: white;
+    font-weight: 600;
+    box-shadow: 0 2px 12px rgba(59,130,246,0.3);
+  }
+
+  .btn-primary:hover {
+    background: #2563eb;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 20px rgba(59,130,246,0.4);
+  }
+
+  .btn-amber {
+    background: rgba(245,158,11,0.15);
+    border-color: rgba(245,158,11,0.3);
+    color: var(--amber);
+    font-weight: 600;
+  }
+
+  .btn-amber:hover {
+    background: rgba(245,158,11,0.25);
+    border-color: rgba(245,158,11,0.5);
+  }
+
+  .btn-emerald {
+    background: rgba(16,185,129,0.15);
+    border-color: rgba(16,185,129,0.3);
+    color: var(--emerald);
+    font-weight: 600;
+  }
+
+  .btn-emerald:hover {
+    background: rgba(16,185,129,0.25);
+    border-color: rgba(16,185,129,0.5);
+  }
+
+  .header-hero {
+    animation: fadeUp 0.8s ease-out 0.2s both;
+  }
+
+  .header-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--blue-glow);
+    margin-bottom: 12px;
+  }
+
+  .header-tag::before {
+    content: '';
+    width: 28px;
+    height: 1px;
+    background: var(--blue-accent);
+  }
+
+  .header-hero h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(1.6rem, 3vw, 2.2rem);
+    font-weight: 400;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    margin-bottom: 6px;
+  }
+
+  .header-hero h1 em {
+    font-style: italic;
+    color: var(--blue-glow);
+  }
+
+  .header-hero p {
+    font-size: 0.92rem;
+    color: rgba(255,255,255,0.5);
+    font-weight: 300;
+  }
+
+  /* ── CONTAINER ── */
+  .container {
+    max-width: 1500px;
+    margin: 0 auto;
+    padding: 32px 40px 60px;
+  }
+
+  /* ── SECTION ── */
+  .section {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 22px;
+    box-shadow: 0 2px 12px rgba(10,22,40,0.04);
+    transition: box-shadow 0.3s;
+  }
+
+  .section:hover {
+    box-shadow: 0 8px 32px rgba(10,22,40,0.07);
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+
+  .section-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+  }
+
+  .section-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.15rem;
+    font-weight: 400;
+    color: var(--text-dark);
+  }
+
+  .section-sub {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    font-weight: 300;
+    margin-bottom: 20px;
+    margin-left: 42px;
+  }
+
+  /* ── PARAMETERS ── */
+  .param-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 16px;
+  }
+
+  .param-item {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .param-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .param-hint {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    font-style: italic;
+    margin-top: -2px;
+  }
+
+  .param-input {
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.92rem;
+    font-weight: 500;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--cream);
+    color: var(--text-dark);
+    outline: none;
+    transition: border-color 0.25s, box-shadow 0.25s;
+    width: 100%;
+  }
+
+  .param-input:focus {
+    border-color: var(--blue-accent);
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+  }
+
+  .param-input:hover {
+    border-color: var(--border-hover);
+  }
+
+  /* ── TABS ── */
+  .tabs-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+
+  .tab-btn {
+    font-size: 0.78rem;
+    font-weight: 500;
+    padding: 8px 18px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.25s;
+    letter-spacing: 0.02em;
+  }
+
+  .tab-btn:hover {
+    background: rgba(59,130,246,0.04);
+    color: var(--text-dark);
+    border-color: var(--blue-pale);
+  }
+
+  .tab-btn.active {
+    background: var(--blue-deep);
+    border-color: var(--blue-deep);
+    color: white;
+    box-shadow: 0 2px 12px rgba(10,22,40,0.15);
+  }
+
+  /* ── VIEW TABS ── */
+  .view-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 18px;
+    background: var(--cream);
+    border-radius: 10px;
+    padding: 4px;
+    width: fit-content;
+    border: 1px solid var(--border);
+  }
+
+  .view-tab {
+    font-size: 0.8rem;
+    font-weight: 500;
+    padding: 8px 22px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.25s;
+  }
+
+  .view-tab:hover { color: var(--text-body); }
+
+  .view-tab.active {
+    background: var(--white);
+    color: var(--blue-accent);
+    box-shadow: 0 2px 8px rgba(10,22,40,0.08);
+  }
+
+  /* ── COPY ROW ── */
+  .copy-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+
+  .copy-row label {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
+  .copy-row select {
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.82rem;
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--cream);
+    color: var(--text-dark);
+    outline: none;
+    cursor: pointer;
+  }
+
+  .copy-row .btn {
+    background: var(--cream);
+    border: 1px solid var(--border);
+    color: var(--text-body);
+    padding: 6px 14px;
+    font-size: 0.78rem;
+    backdrop-filter: none;
+  }
+
+  .copy-row .btn:hover {
+    background: var(--blue-pale);
+    border-color: var(--blue-accent);
+    color: var(--blue-accent);
+  }
+
+  /* ── HOURLY TABLE ── */
+  .hourly-table-wrap { overflow-x: auto; }
+
+  .hourly-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+  }
+
+  .hourly-table th {
+    padding: 10px 6px;
+    text-align: center;
+    color: var(--text-muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 0.68rem;
+    border-bottom: 2px solid var(--border);
+    white-space: nowrap;
+  }
+
+  .hourly-table td {
+    padding: 3px 3px;
+    text-align: center;
+    border-bottom: 1px solid rgba(232,228,222,0.7);
+  }
+
+  .hourly-table .hour-label {
+    color: var(--text-muted);
+    font-weight: 600;
+    width: 50px;
+    font-size: 0.75rem;
+  }
+
+  .hourly-table input {
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 400;
+    width: 80px;
+    padding: 7px 8px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: var(--cream);
+    color: var(--text-dark);
+    text-align: center;
+    outline: none;
+    transition: all 0.2s;
+  }
+
+  .hourly-table input:hover { border-color: var(--border); }
+
+  .hourly-table input:focus {
+    border-color: var(--blue-accent);
+    box-shadow: 0 0 0 2px rgba(59,130,246,0.1);
+    background: var(--white);
+  }
+
+  .hourly-table .col-price input:focus { border-color: var(--violet); box-shadow: 0 0 0 2px rgba(139,92,246,0.1); }
+  .hourly-table .col-cons input:focus { border-color: var(--cyan); box-shadow: 0 0 0 2px rgba(14,165,233,0.1); }
+  .hourly-table .col-solar input:focus { border-color: var(--amber); box-shadow: 0 0 0 2px rgba(245,158,11,0.1); }
+  .hourly-table .col-afrr-p input:focus { border-color: var(--emerald); box-shadow: 0 0 0 2px rgba(16,185,129,0.1); }
+  .hourly-table .col-afrr-m input:focus { border-color: var(--rose); box-shadow: 0 0 0 2px rgba(244,63,94,0.1); }
+
+  /* ── CHARTS ── */
+  .charts-view { display: block; }
+  .charts-view.hidden { display: none; }
+
+  .chart-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    margin-bottom: 18px;
+  }
+
+  .chart-box {
+    background: var(--cream);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px 20px;
+    transition: box-shadow 0.3s;
+  }
+
+  .chart-box:hover {
+    box-shadow: 0 4px 20px rgba(10,22,40,0.06);
+  }
+
+  .chart-box.full-width { grid-column: 1 / -1; }
+
+  .chart-box-title {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-dark);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .chart-box canvas {
+    width: 100% !important;
+    height: 200px !important;
+  }
+
+  .drag-hint {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-top: 6px;
+    text-align: center;
+    font-weight: 300;
+  }
+
+  .energy-badge-wrap {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .energy-badge-orig {
+    font-size: 0.72rem;
+    font-weight: 400;
+    color: var(--text-muted);
+    text-decoration: line-through;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .energy-badge-orig.visible { opacity: 1; }
+
+  .energy-badge {
+    font-size: 0.82rem;
+    font-weight: 700;
+    padding: 3px 12px;
+    border-radius: 8px;
+    border: 1px solid;
+    background: var(--white);
+    letter-spacing: 0.02em;
+    transition: transform 0.15s ease;
+  }
+
+  .energy-badge.changed {
+    animation: badge-pulse 0.3s ease;
+  }
+
+  .energy-pct {
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 6px;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .energy-pct.visible { opacity: 1; }
+  .energy-pct.up { color: var(--rose); background: rgba(244,63,94,0.08); }
+  .energy-pct.down { color: var(--emerald); background: rgba(16,185,129,0.08); }
+
+  @keyframes badge-pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.12); }
+    100% { transform: scale(1); }
+  }
+
+  /* ── DRAG MODE TOGGLE ── */
+  .drag-mode-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-left: 8px;
+    flex-shrink: 0;
+  }
+
+  .drag-mode-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.68rem;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .drag-mode-btn:hover {
+    color: var(--text-body);
+    background: rgba(59,130,246,0.04);
+  }
+
+  .drag-mode-btn.active {
+    background: var(--blue-deep);
+    color: white;
+  }
+
+  .drag-mode-btn svg {
+    width: 14px;
+    height: 14px;
+    fill: currentColor;
+    flex-shrink: 0;
+  }
+
+  /* ── TABLE VIEW ── */
+  .table-view { display: none; }
+  .table-view.visible { display: block; }
+
+  /* ── TOAST ── */
+  .toast {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    background: var(--white);
+    border: 1px solid var(--emerald);
+    color: var(--emerald);
+    padding: 14px 24px;
+    border-radius: 14px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    box-shadow: 0 8px 32px rgba(10,22,40,0.12);
+    z-index: 999;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.3s ease;
+    pointer-events: none;
+  }
+
+  .toast.show { opacity: 1; transform: translateY(0); }
+
+  /* ── FOOTER ── */
+  .footer {
+    text-align: center;
+    padding: 32px 40px;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 300;
+    border-top: 1px solid var(--border);
+  }
+
+  #file-input { display: none; }
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--cream); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
+
+  /* ── ANIMATIONS ── */
+  @keyframes fadeDown {
+    from { opacity: 0; transform: translateY(-16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 900px) {
+    .chart-row { grid-template-columns: 1fr; }
+    .header-inner { padding: 20px 16px 28px; }
+    .container { padding: 20px 16px; }
+    .header-nav { flex-direction: column; gap: 14px; align-items: flex-start; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="top-header">
+  <div class="header-orb"></div>
+  <div class="header-orb header-orb-2"></div>
+  <div class="header-inner">
+    <div class="header-nav">
+      <div class="header-nav-left">
+        <div class="logo-mark"><img src="Images/Podravka_logo.png" alt="Podravka"></div>
+        <div class="logo-text">Podravka<span>.</span></div>
+      </div>
+      <div class="actions">
+        <button class="btn" onclick="loadFile()">&#128194; Ucitaj JSON</button>
+        <button class="btn btn-amber" onclick="downloadJSON()">&#11015; Preuzmi Input.json</button>
+        <button class="btn btn-emerald" onclick="saveToServer()">&#128190; Spremi na disk</button>
+        <button class="btn btn-primary" id="run-btn" onclick="runSimulation()">&#9654; Pokreni simulaciju</button>
+        <button class="btn" onclick="window.open('dashboard.html','_blank')">&#9889; Dashboard</button>
+      </div>
+    </div>
+    <div class="header-hero">
+      <div class="header-tag">Konfigurator ulaznih podataka</div>
+      <h1>Input <em>Editor</em></h1>
+      <p>Definirajte cijene, potrosnju, solarne profile i aFRR parametre za optimizaciju.</p>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="file-input" accept=".json" onchange="handleFileLoad(event)">
+
+<div class="container">
+  <!-- PARAMETERS -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:rgba(245,158,11,0.1);color:var(--amber);">&#9881;</div>
+      <div class="section-title">Parametri sustava</div>
+    </div>
+    <div class="section-sub">Konfigurirajte bateriju, mrezu i solarne parametre</div>
+    <div class="param-grid" id="param-grid"></div>
+  </div>
+
+  <!-- HOURLY DATA -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:rgba(14,165,233,0.1);color:var(--cyan);">&#9638;</div>
+      <div class="section-title">Satni podaci</div>
+    </div>
+    <div class="section-sub">7 dana x 24 sata &mdash; cijene, potrosnja, solar, aFRR</div>
+
+    <div class="copy-row">
+      <label>Kopiraj dan:</label>
+      <select id="copy-from"></select>
+      <span style="color:var(--text-muted)">&#8594;</span>
+      <select id="copy-to"></select>
+      <button class="btn" onclick="copyDay()">Kopiraj</button>
+      <span style="color:var(--border)">|</span>
+      <button class="btn" onclick="fillZeros()">Popuni nulama</button>
+    </div>
+
+    <!-- View toggle -->
+    <div class="view-tabs">
+      <button class="view-tab" onclick="setView('table')">&#9638; Tablica</button>
+      <button class="view-tab active" onclick="setView('chart')">&#9683; Dijagrami</button>
+    </div>
+
+    <!-- Day tabs -->
+    <div class="tabs-row" id="day-tabs"></div>
+
+    <!-- TABLE VIEW -->
+    <div class="table-view" id="table-view" style="display:none">
+      <div class="hourly-table-wrap">
+        <table class="hourly-table" id="hourly-table">
+          <thead>
+            <tr>
+              <th>Sat</th>
+              <th style="color:var(--violet)">Cijena<br><span style="font-size:0.6rem;font-weight:300">EUR/MWh</span></th>
+              <th style="color:var(--cyan)">Potrosnja<br><span style="font-size:0.6rem;font-weight:300">MW</span></th>
+              <th style="color:var(--amber)">Solar<br><span style="font-size:0.6rem;font-weight:300">norm 0-1</span></th>
+              <th style="color:var(--emerald)">aFRR+<br><span style="font-size:0.6rem;font-weight:300">MW</span></th>
+              <th style="color:var(--rose)">aFRR-<br><span style="font-size:0.6rem;font-weight:300">MW</span></th>
+            </tr>
+          </thead>
+          <tbody id="hourly-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- CHART VIEW -->
+    <div class="charts-view" id="chart-view">
+      <div class="chart-box full-width" style="margin-bottom:18px">
+        <div class="chart-box-title">
+          <span style="color:var(--violet)">&#9830;</span> Cijena elektricne energije [EUR/MWh]
+          <span id="drag-toggle-chart-price" class="drag-mode-toggle"></span>
+        </div>
+        <canvas id="chart-price"></canvas>
+      </div>
+      <div class="chart-row">
+        <div class="chart-box">
+          <div class="chart-box-title">
+            <span style="color:var(--cyan)">&#9679;</span> Potrosnja [MW]
+            <span class="energy-badge-wrap">
+              <span class="energy-badge-orig" id="badge-cons-orig">0.0 MWh</span>
+              <span class="energy-badge" id="badge-cons" style="color:var(--cyan);border-color:var(--cyan)">0.0 MWh</span>
+              <span class="energy-pct" id="badge-cons-pct"></span>
+            </span>
+            <span id="drag-toggle-chart-cons" class="drag-mode-toggle"></span>
+          </div>
+          <canvas id="chart-cons"></canvas>
+        </div>
+        <div class="chart-box">
+          <div class="chart-box-title">
+            <span style="color:var(--amber)">&#9679;</span> Solar [norm 0-1]
+            <span class="energy-badge-wrap">
+              <span class="energy-badge-orig" id="badge-solar-orig">0.0 MWh</span>
+              <span class="energy-badge" id="badge-solar" style="color:var(--amber);border-color:var(--amber)">0.0 MWh</span>
+              <span class="energy-pct" id="badge-solar-pct"></span>
+            </span>
+            <span id="drag-toggle-chart-solar" class="drag-mode-toggle"></span>
+          </div>
+          <canvas id="chart-solar"></canvas>
+        </div>
+      </div>
+      <div class="chart-row">
+        <div class="chart-box">
+          <div class="chart-box-title">
+            <span style="color:var(--emerald)">&#9679;</span> aFRR+ [MW]
+            <span id="drag-toggle-chart-afrrp" class="drag-mode-toggle"></span>
+          </div>
+          <canvas id="chart-afrrp"></canvas>
+        </div>
+        <div class="chart-box">
+          <div class="chart-box-title">
+            <span style="color:var(--rose)">&#9679;</span> aFRR- [MW]
+            <span id="drag-toggle-chart-afrrm" class="drag-mode-toggle"></span>
+          </div>
+          <canvas id="chart-afrrm"></canvas>
+        </div>
+      </div>
+      <div class="drag-hint">Sve promjene na dijagramima automatski se sinkroniziraju s tablicom</div>
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  &copy; 2026 Podravka BESS. Konfigurirano s preciznoscu.
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const DAYS = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+const HOURS_LABELS = Array.from({length:24}, (_,i) => String(i).padStart(2,'0')+':00');
+const PARAMS_DEF = [
+  { key: 'P_bat',             label: 'P bat',             hint: 'Max snaga baterije [MW]',       step: 0.1 },
+  { key: 'E_bat',             label: 'E bat',             hint: 'Kapacitet baterije [MWh]',      step: 0.5 },
+  { key: 'SOC_init',          label: 'SOC init',          hint: 'Pocetni SOC [%]',               step: 1 },
+  { key: 'P_grid_max',        label: 'P grid max',        hint: 'Max snaga mreze [MW]',          step: 0.5 },
+  { key: 'P_solar_installed', label: 'P solar inst.',     hint: 'Instalirana snaga solara [MW]', step: 0.5 },
+  { key: 'n_bat_min',         label: 'n bat min',         hint: 'Min sati u istom rezimu [h]',   step: 1 },
+  { key: 'price_export',      label: 'Cijena export',     hint: 'Cijena prodaje u mrezu [EUR/MWh]', step: 1 },
+  { key: 'eta_charge',        label: 'Eta punjenje',      hint: 'Efikasnost punjenja [0-1]',     step: 0.01 },
+  { key: 'eta_discharge',     label: 'Eta praznjenje',    hint: 'Efikasnost praznjenja [0-1]',   step: 0.01 },
+  { key: 'PENALTY_DEFICIT',   label: 'Penal manjak',      hint: 'Kazneni trosak [EUR/MWh]',      step: 1000 },
+];
+
+const CHART_CONFIGS = [
+  { id: 'chart-price',  arr: 'prices',      color: '#8b5cf6', bg: 'rgba(139,92,246,0.08)', label: 'Cijena', round: 1 },
+  { id: 'chart-cons',   arr: 'consumption', color: '#0ea5e9', bg: 'rgba(14,165,233,0.08)',  label: 'Potrosnja', round: 2 },
+  { id: 'chart-solar',  arr: 'solar',       color: '#f59e0b', bg: 'rgba(245,158,11,0.08)',  label: 'Solar', round: 2 },
+  { id: 'chart-afrrp',  arr: 'aFRRplus',    color: '#10b981', bg: 'rgba(16,185,129,0.08)',  label: 'aFRR+', round: 2 },
+  { id: 'chart-afrrm',  arr: 'aFRRminus',   color: '#f43f5e', bg: 'rgba(244,63,94,0.08)',   label: 'aFRR-', round: 2 },
+];
+
+let state = {
+  parameters: {},
+  prices: new Array(168).fill(0),
+  consumption: new Array(168).fill(0),
+  solar: new Array(168).fill(0),
+  aFRRplus: new Array(168).fill(0),
+  aFRRminus: new Array(168).fill(0),
+};
+let originalState = {
+  prices: new Array(168).fill(0),
+  consumption: new Array(168).fill(0),
+  solar: new Array(168).fill(0),
+  aFRRplus: new Array(168).fill(0),
+  aFRRminus: new Array(168).fill(0),
+};
+let currentDay = 0;
+let currentView = 'chart';
+let charts = {};
+let dragModes = {};
+CHART_CONFIGS.forEach(c => dragModes[c.id] = 'single');
+
+// Chart.js global theme
+Chart.defaults.color = '#94a3b8';
+Chart.defaults.borderColor = 'rgba(232,228,222,0.6)';
+Chart.defaults.font.family = 'Outfit';
+
+const SVG_SINGLE = `<svg viewBox="0 0 16 16"><circle cx="8" cy="5" r="2.5"/><line x1="8" y1="8" x2="8" y2="14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="5" y1="11" x2="8" y2="14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="11" y1="11" x2="8" y2="14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+const SVG_ALL = `<svg viewBox="0 0 16 16"><circle cx="4" cy="5" r="1.8"/><circle cx="8" cy="3" r="1.8"/><circle cx="12" cy="5" r="1.8"/><path d="M2 14 L4 8 L8 6 L12 8 L14 14" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/><line x1="8" y1="6" x2="8" y2="12" stroke="currentColor" stroke-width="1" stroke-dasharray="1.5 1.5"/></svg>`;
+
+const tooltipStyle = {
+  backgroundColor: 'rgba(10,22,40,0.92)',
+  titleColor: '#e2e8f0',
+  bodyColor: '#94a3b8',
+  borderColor: 'rgba(59,130,246,0.2)',
+  borderWidth: 1,
+  titleFont: { family: 'Outfit', weight: '600' },
+  bodyFont: { family: 'Outfit' },
+  padding: 14,
+  cornerRadius: 10,
+  boxPadding: 4,
+};
+
+function renderDragToggles() {
+  CHART_CONFIGS.forEach(cfg => {
+    const el = document.getElementById('drag-toggle-' + cfg.id);
+    if (!el) return;
+    el.innerHTML = `
+      <button class="drag-mode-btn ${dragModes[cfg.id]==='single'?'active':''}"
+        onclick="setDragMode('${cfg.id}','single')" title="Pomakni jednu tocku">
+        ${SVG_SINGLE}<span>Jedna</span>
+      </button>
+      <button class="drag-mode-btn ${dragModes[cfg.id]==='all'?'active':''}"
+        onclick="setDragMode('${cfg.id}','all')" title="Pomakni sve tocke zajedno">
+        ${SVG_ALL}<span>Sve</span>
+      </button>`;
+  });
+}
+
+function setDragMode(chartId, mode) {
+  dragModes[chartId] = mode;
+  renderDragToggles();
+}
+
+fetch('Input.json')
+  .then(r => r.json())
+  .then(data => {
+    state.parameters = { ...data.parameters };
+    state.prices = [...data.prices];
+    state.consumption = [...data.consumption];
+    state.solar = [...data.solar];
+    state.aFRRplus = [...data.aFRRplus];
+    state.aFRRminus = [...data.aFRRminus];
+    originalState.prices = [...data.prices];
+    originalState.consumption = [...data.consumption];
+    originalState.solar = [...data.solar];
+    originalState.aFRRplus = [...data.aFRRplus];
+    originalState.aFRRminus = [...data.aFRRminus];
+    init();
+  })
+  .catch(() => { init(); });
+
+function init() {
+  renderParams();
+  renderDayTabs();
+  renderCopySelects();
+  renderDragToggles();
+  renderHourlyTable(currentDay);
+  buildAllCharts(currentDay);
+}
+
+function renderParams() {
+  const grid = document.getElementById('param-grid');
+  grid.innerHTML = PARAMS_DEF.map(p => `
+    <div class="param-item">
+      <div class="param-label">${p.label}</div>
+      <input class="param-input" type="number" step="${p.step}"
+        value="${state.parameters[p.key] ?? 0}"
+        onchange="state.parameters['${p.key}'] = parseFloat(this.value) || 0">
+      <div class="param-hint">${p.hint}</div>
+    </div>
+  `).join('');
+}
+
+function renderDayTabs() {
+  const el = document.getElementById('day-tabs');
+  el.innerHTML = DAYS.map((name, i) =>
+    `<button class="tab-btn ${i===0?'active':''}" onclick="selectDay(${i})">${name}</button>`
+  ).join('');
+}
+
+function renderCopySelects() {
+  ['copy-from','copy-to'].forEach(id => {
+    document.getElementById(id).innerHTML = DAYS.map((n,i) =>
+      `<option value="${i}">${n}</option>`).join('');
+  });
+}
+
+function setView(v) {
+  saveCurrentTable();
+  currentView = v;
+  document.querySelectorAll('.view-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.view-tab')[v==='table'?0:1].classList.add('active');
+  const tv = document.getElementById('table-view');
+  const cv = document.getElementById('chart-view');
+  tv.style.display = v === 'table' ? 'block' : 'none';
+  cv.style.display = v === 'chart' ? 'block' : 'none';
+  if (v === 'chart') {
+    updateAllCharts(currentDay);
+  }
+}
+
+function selectDay(d) {
+  saveCurrentTable();
+  currentDay = d;
+  document.querySelectorAll('.tab-btn').forEach((t,i) => t.classList.toggle('active', i===d));
+  renderHourlyTable(d);
+  if (currentView === 'chart') updateAllCharts(d);
+}
+
+function renderHourlyTable(day) {
+  const offset = day * 24;
+  const tbody = document.getElementById('hourly-body');
+  let html = '';
+  for (let h = 0; h < 24; h++) {
+    const i = offset + h;
+    html += `<tr>
+      <td class="hour-label">${String(h).padStart(2,'0')}:00</td>
+      <td class="col-price"><input type="number" step="0.1" data-arr="prices" data-idx="${i}" value="${state.prices[i]}"></td>
+      <td class="col-cons"><input type="number" step="0.1" data-arr="consumption" data-idx="${i}" value="${state.consumption[i]}"></td>
+      <td class="col-solar"><input type="number" step="0.01" min="0" max="1" data-arr="solar" data-idx="${i}" value="${state.solar[i]}"></td>
+      <td class="col-afrr-p"><input type="number" step="0.1" data-arr="aFRRplus" data-idx="${i}" value="${state.aFRRplus[i]}"></td>
+      <td class="col-afrr-m"><input type="number" step="0.1" data-arr="aFRRminus" data-idx="${i}" value="${state.aFRRminus[i]}"></td>
+    </tr>`;
+  }
+  tbody.innerHTML = html;
+}
+
+function saveCurrentTable() {
+  document.querySelectorAll('#hourly-body input').forEach(inp => {
+    const arr = inp.dataset.arr;
+    const idx = parseInt(inp.dataset.idx);
+    if (arr && !isNaN(idx)) state[arr][idx] = parseFloat(inp.value) || 0;
+  });
+}
+
+const ENERGY_BADGES = {
+  'chart-cons':  { badgeId: 'badge-cons',  unit: 'MWh', mult: 1 },
+  'chart-solar': { badgeId: 'badge-solar', unit: 'MWh', mult: state.parameters.P_solar_installed || 2.5 },
+};
+
+function getDaySlice(arr, day) {
+  return state[arr].slice(day * 24, day * 24 + 24);
+}
+
+function getOriginalDaySlice(arr, day) {
+  return originalState[arr].slice(day * 24, day * 24 + 24);
+}
+
+function updateBadge(cfgId, data) {
+  const badge = ENERGY_BADGES[cfgId];
+  if (!badge) return;
+  let mult = badge.mult;
+  if (cfgId === 'chart-solar') mult = state.parameters.P_solar_installed || 2.5;
+  const sum = data.reduce((s, v) => s + v, 0) * mult;
+
+  const arrKey = CHART_CONFIGS.find(c => c.id === cfgId).arr;
+  const origData = getOriginalDaySlice(arrKey, currentDay);
+  const origSum = origData.reduce((s, v) => s + v, 0) * mult;
+
+  const el = document.getElementById(badge.badgeId);
+  if (el) {
+    el.textContent = sum.toFixed(1) + ' ' + badge.unit;
+    el.classList.remove('changed');
+    void el.offsetWidth;
+    el.classList.add('changed');
+  }
+
+  const origEl = document.getElementById(badge.badgeId + '-orig');
+  const hasChanged = Math.abs(sum - origSum) > 0.05;
+  if (origEl) {
+    origEl.textContent = origSum.toFixed(1) + ' ' + badge.unit;
+    origEl.classList.toggle('visible', hasChanged);
+  }
+
+  const pctEl = document.getElementById(badge.badgeId + '-pct');
+  if (pctEl) {
+    if (hasChanged && origSum > 0) {
+      const pct = ((sum - origSum) / origSum) * 100;
+      const sign = pct > 0 ? '+' : '';
+      pctEl.textContent = sign + pct.toFixed(1) + '%';
+      pctEl.classList.remove('up', 'down');
+      pctEl.classList.add(pct > 0 ? 'up' : 'down');
+      pctEl.classList.add('visible');
+    } else {
+      pctEl.classList.remove('visible');
+    }
+  }
+}
+
+function buildAllCharts(day) {
+  CHART_CONFIGS.forEach(cfg => {
+    if (charts[cfg.id]) charts[cfg.id].destroy();
+    const ctx = document.getElementById(cfg.id).getContext('2d');
+    const data = getDaySlice(cfg.arr, day);
+    const origData = getOriginalDaySlice(cfg.arr, day);
+
+    updateBadge(cfg.id, data);
+
+    let dragStartValue = null;
+    let dragStartData = null;
+
+    const datasets = [
+      {
+        label: 'Original',
+        data: [...origData],
+        borderColor: 'rgba(148,163,184,0.35)',
+        backgroundColor: 'transparent',
+        borderWidth: 1.5,
+        borderDash: [4, 4],
+        pointRadius: 3,
+        pointBackgroundColor: 'rgba(148,163,184,0.25)',
+        pointBorderColor: 'rgba(148,163,184,0.4)',
+        pointBorderWidth: 1,
+        pointHitRadius: 0,
+        pointHoverRadius: 3,
+        fill: false,
+        tension: 0.15,
+        order: 2,
+      },
+      {
+        label: cfg.label,
+        data: [...data],
+        borderColor: cfg.color,
+        backgroundColor: cfg.bg,
+        borderWidth: 2.5,
+        pointRadius: 4,
+        pointHoverRadius: 7,
+        pointBackgroundColor: cfg.color,
+        pointBorderColor: '#ffffff',
+        pointBorderWidth: 2,
+        pointHitRadius: 12,
+        fill: true,
+        tension: 0.15,
+        order: 1,
+      }
+    ];
+
+    charts[cfg.id] = new Chart(ctx, {
+      type: 'line',
+      data: { labels: HOURS_LABELS, datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 200 },
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          dragData: {
+            round: cfg.round,
+            showTooltip: true,
+            dragX: false,
+            onDragStart: (e, datasetIndex, index, value) => {
+              if (datasetIndex !== 1) return false;
+              dragStartValue = value;
+              dragStartData = [...charts[cfg.id].data.datasets[1].data];
+            },
+            onDrag: (e, datasetIndex, index, value) => {
+              if (datasetIndex !== 1) return false;
+              const chart = charts[cfg.id];
+              const mode = dragModes[cfg.id];
+              if (mode === 'all' && dragStartData) {
+                const delta = value - dragStartValue;
+                const newData = dragStartData.map(v => {
+                  let nv = Math.round((v + delta) * Math.pow(10, cfg.round)) / Math.pow(10, cfg.round);
+                  return Math.max(0, nv);
+                });
+                chart.data.datasets[1].data = newData;
+                chart.update('none');
+                updateBadge(cfg.id, newData);
+              } else {
+                const liveData = [...chart.data.datasets[1].data];
+                liveData[index] = value;
+                updateBadge(cfg.id, liveData);
+              }
+            },
+            onDragEnd: (e, datasetIndex, index, value) => {
+              if (datasetIndex !== 1) return;
+              const chart = charts[cfg.id];
+              const mode = dragModes[cfg.id];
+              const offset = currentDay * 24;
+              if (mode === 'all' && dragStartData) {
+                const delta = value - dragStartValue;
+                const finalData = dragStartData.map(v => {
+                  let nv = Math.round((v + delta) * Math.pow(10, cfg.round)) / Math.pow(10, cfg.round);
+                  return Math.max(0, nv);
+                });
+                chart.data.datasets[1].data = finalData;
+                chart.update('none');
+                for (let h = 0; h < 24; h++) {
+                  state[cfg.arr][offset + h] = finalData[h];
+                  const inp = document.querySelector(`input[data-arr="${cfg.arr}"][data-idx="${offset + h}"]`);
+                  if (inp) inp.value = finalData[h];
+                }
+                updateBadge(cfg.id, finalData);
+              } else {
+                const globalIdx = offset + index;
+                state[cfg.arr][globalIdx] = value;
+                const inp = document.querySelector(`input[data-arr="${cfg.arr}"][data-idx="${globalIdx}"]`);
+                if (inp) inp.value = value;
+                updateBadge(cfg.id, chart.data.datasets[1].data);
+              }
+              dragStartValue = null;
+              dragStartData = null;
+            }
+          },
+          tooltip: {
+            ...tooltipStyle,
+            filter: (item) => item.datasetIndex === 1,
+            callbacks: {
+              title: ctx => ctx[0].label,
+              label: ctx => {
+                const orig = charts[cfg.id].data.datasets[0].data[ctx.dataIndex];
+                const diff = ctx.raw - orig;
+                const diffStr = diff !== 0 ? ` (${diff > 0 ? '+' : ''}${diff.toFixed(cfg.round)})` : '';
+                return `${cfg.label}: ${ctx.raw}${diffStr}`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { color: 'rgba(232,228,222,0.5)' },
+            ticks: {
+              color: '#94a3b8',
+              font: { family: 'Outfit', size: 11 },
+              maxRotation: 0, autoSkip: true, maxTicksLimit: 12,
+            }
+          },
+          y: {
+            beginAtZero: true,
+            max: Math.ceil(Math.max(...data, ...origData) * 1.5 * 10) / 10 || 1,
+            grid: { color: 'rgba(232,228,222,0.5)' },
+            ticks: {
+              color: '#94a3b8',
+              font: { family: 'Outfit', size: 11 }
+            }
+          }
+        }
+      }
+    });
+  });
+}
+
+function updateAllCharts(day) {
+  CHART_CONFIGS.forEach(cfg => {
+    const chart = charts[cfg.id];
+    if (!chart) return;
+    const data = getDaySlice(cfg.arr, day);
+    const origData = getOriginalDaySlice(cfg.arr, day);
+    chart.data.datasets[0].data = [...origData];
+    chart.data.datasets[1].data = [...data];
+    chart.update('none');
+    updateBadge(cfg.id, data);
+  });
+}
+
+function buildJSON() {
+  saveCurrentTable();
+  return {
+    description: "Hourly electricity prices and factory consumption, 7 days x 24 hours",
+    days: DAYS,
+    price_unit: "EUR/MWh",
+    consumption_unit: "MW",
+    parameters: {
+      P_bat: state.parameters.P_bat,
+      E_bat: state.parameters.E_bat,
+      SOC_init: state.parameters.SOC_init,
+      P_grid_max: state.parameters.P_grid_max,
+      PENALTY_DEFICIT: state.parameters.PENALTY_DEFICIT,
+      verbose: true,
+      P_solar_installed: state.parameters.P_solar_installed,
+      n_bat_min: state.parameters.n_bat_min,
+      price_export: state.parameters.price_export,
+      eta_charge: state.parameters.eta_charge,
+      eta_discharge: state.parameters.eta_discharge,
+    },
+    prices: state.prices,
+    consumption: state.consumption,
+    aFRR_unit: "MW",
+    aFRRplus: state.aFRRplus,
+    aFRRminus: state.aFRRminus,
+    solar_unit: "kW (normalizirano na 1 kW instalirane snage)",
+    solar: state.solar,
+  };
+}
+
+function downloadJSON() {
+  const json = JSON.stringify(buildJSON(), null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'Input.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  showToast('Input.json preuzet');
+}
+
+function saveToServer() {
+  const json = JSON.stringify(buildJSON(), null, 2);
+  fetch('/save-input', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: json
+  }).then(r => {
+    if (r.ok) showToast('Spremljeno u Input.json');
+    else throw new Error();
+  }).catch(() => {
+    downloadJSON();
+    showToast('Server nedostupan — preuzeto kao datoteka');
+  });
+}
+
+function loadFile() { document.getElementById('file-input').click(); }
+
+function handleFileLoad(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (data.parameters) state.parameters = { ...data.parameters };
+      if (data.prices) { state.prices = [...data.prices]; originalState.prices = [...data.prices]; }
+      if (data.consumption) { state.consumption = [...data.consumption]; originalState.consumption = [...data.consumption]; }
+      if (data.solar) { state.solar = [...data.solar]; originalState.solar = [...data.solar]; }
+      if (data.aFRRplus) { state.aFRRplus = [...data.aFRRplus]; originalState.aFRRplus = [...data.aFRRplus]; }
+      if (data.aFRRminus) { state.aFRRminus = [...data.aFRRminus]; originalState.aFRRminus = [...data.aFRRminus]; }
+      renderParams();
+      renderHourlyTable(currentDay);
+      buildAllCharts(currentDay);
+      showToast('JSON ucitan: ' + file.name);
+    } catch { showToast('Greska pri citanju JSON-a'); }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+function copyDay() {
+  saveCurrentTable();
+  const from = parseInt(document.getElementById('copy-from').value);
+  const to = parseInt(document.getElementById('copy-to').value);
+  if (from === to) return;
+  const oFrom = from * 24, oTo = to * 24;
+  ['prices','consumption','solar','aFRRplus','aFRRminus'].forEach(arr => {
+    for (let h = 0; h < 24; h++) state[arr][oTo + h] = state[arr][oFrom + h];
+  });
+  if (currentDay === to) {
+    renderHourlyTable(to);
+    if (currentView === 'chart') updateAllCharts(to);
+  }
+  showToast(`${DAYS[from]} kopiran u ${DAYS[to]}`);
+}
+
+function fillZeros() {
+  saveCurrentTable();
+  const offset = currentDay * 24;
+  ['prices','consumption','solar','aFRRplus','aFRRminus'].forEach(arr => {
+    for (let h = 0; h < 24; h++) state[arr][offset + h] = 0;
+  });
+  renderHourlyTable(currentDay);
+  if (currentView === 'chart') updateAllCharts(currentDay);
+  showToast(`${DAYS[currentDay]} popunjen nulama`);
+}
+
+function runSimulation() {
+  const btn = document.getElementById('run-btn');
+  btn.disabled = true;
+  btn.innerHTML = '&#9203; Racunam...';
+  showToast('Simulacija pokrenuta...');
+  fetch('/run-simulation', { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+      btn.disabled = false;
+      btn.innerHTML = '&#9654; Pokreni simulaciju';
+      if (data.ok) {
+        showToast('Simulacija zavrsena! Otvorite Dashboard.');
+      } else {
+        showToast('Greska u simulaciji. Provjerite konzolu.');
+        console.error('STDERR:', data.stderr);
+        console.log('STDOUT:', data.stdout);
+      }
+    })
+    .catch(() => {
+      btn.disabled = false;
+      btn.innerHTML = '&#9654; Pokreni simulaciju';
+      showToast('Server nedostupan. Pokrenite server.py');
+    });
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+</script>
+</body>
+</html>

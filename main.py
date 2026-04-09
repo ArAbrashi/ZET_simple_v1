@@ -416,5 +416,45 @@ if status == 2:  # feasible
     plt.tight_layout()
     plt.show()
 
+    # Export rezultata u JSON za dashboard
+    results = {
+        "summary": {
+            "cost_optimized": round(cost_no_penalty, 2),
+            "cost_no_battery": round(cost_no_bat, 2),
+            "savings": round(cost_no_bat - cost_no_penalty, 2),
+            "E_grid_total": round(E_grid_total, 2),
+            "E_consumption_total": round(sum(consumption), 2),
+            "E_solar_total": round(E_solar_total, 2),
+            "E_export_total": round(E_export_total, 2),
+            "R_export_total": round(R_export_total, 2),
+            "E_curtail_total": round(E_curtail_total, 2),
+            "E_deficit_total": round(E_deficit_total, 2),
+        },
+        "parameters": params,
+        "days": data["days"],
+        "hourly": []
+    }
+    for t in range(T):
+        results["hourly"].append({
+            "t": t,
+            "day": t // 24,
+            "hour": t % 24,
+            "price": prices[t],
+            "consumption": consumption[t],
+            "solar": round(solar_prod[t], 4),
+            "grid": round(max(0.0, sol[idx_grid(t)]), 4),
+            "charge": round(max(0.0, sol[idx_charge(t)]), 4),
+            "discharge": round(max(0.0, sol[idx_discharge(t)]), 4),
+            "export": round(max(0.0, sol[idx_export(t)]), 4),
+            "curtail": round(max(0.0, sol[idx_curtail(t)]), 4),
+            "deficit": round(max(0.0, sol[idx_deficit(t)]), 4),
+            "soc": round(sol[idx_soc(t)], 2),
+            "aFRRplus": aFRRplus[t],
+            "aFRRminus": aFRRminus[t],
+        })
+    with open("results.json", "w") as f:
+        json.dump(results, f, indent=2)
+    print("\nRezultati spremljeni u results.json")
+
 else:
     print("Model nije pronašao izvedivo rješenje!")
