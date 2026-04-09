@@ -328,6 +328,8 @@ if status == 2:  # feasible
             v_soc  = sol[idx_soc(t)]
             print(f"{t - start:4d} | {prices[t]:7.1f}  | {consumption[t]:6.1f}  | {solar_prod[t]:4.2f}  | {v_grid:5.2f}  | "
                   f"{v_chg:5.2f}  | {v_dis:5.2f}  | {v_exp:5.2f}  | {v_cur:4.2f}  | {v_def:5.2f}  | {aFRRplus[t]:4.1f}  | {aFRRminus[t]:4.1f}  | {v_soc:5.1f}%")
+    '''
+    
     # Dijagram za 3 dana (72 sata)
     H = 72
     hours = list(range(H))
@@ -415,7 +417,7 @@ if status == 2:  # feasible
 
     plt.tight_layout()
     plt.show()
-
+    '''
     # Export rezultata u JSON za dashboard
     results = {
         "summary": {

@@ -17,6 +17,38 @@ fetch('results.json')
       '<p style="color:var(--text-muted);font-size:0.95rem;">Pokrenite <code style="background:rgba(59,130,246,0.08);padding:3px 8px;border-radius:6px;color:var(--blue-accent);">python main.py</code> za generiranje rezultata.</p></div>';
   });
 
+const DAY_HR = {
+  'Monday': 'Ponedjeljak', 'Tuesday': 'Utorak', 'Wednesday': 'Srijeda',
+  'Thursday': 'Cetvrtak', 'Friday': 'Petak', 'Saturday': 'Subota', 'Sunday': 'Nedjelja'
+};
+function dayName(eng) { return DAY_HR[eng] || eng; }
+function dayShort(eng) { return (DAY_HR[eng] || eng).substring(0, 3); }
+
+function createHatchPattern() {
+  const size = 8;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = 'rgba(210,210,210,0.18)';
+  ctx.fillRect(0, 0, size, size);
+  ctx.strokeStyle = 'rgba(160,160,160,0.55)';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(0, size);
+  ctx.lineTo(size, 0);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-size, size);
+  ctx.lineTo(size, -size);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(0, 2 * size);
+  ctx.lineTo(2 * size, 0);
+  ctx.stroke();
+  return ctx.createPattern(canvas, 'repeat');
+}
+
 function fmt(n, d=2) {
   return n.toLocaleString('de-DE', {minimumFractionDigits:d, maximumFractionDigits:d});
 }
@@ -60,7 +92,7 @@ function renderDailyCards() {
     const gridMwh = dayData.reduce((s,h) => s + h.grid, 0);
     return `
       <div class="daily-card ${i===0?'active':''}" onclick="selectDay(${i})">
-        <div class="day-name">${name}</div>
+        <div class="day-name">${dayName(name)}</div>
         <div class="day-cost">${fmt(cost,0)} EUR</div>
         <div class="day-savings">usteda ${fmt(savings,0)} EUR</div>
         <div class="day-grid-mwh">${fmt(gridMwh,1)} MWh mreza</div>
@@ -72,7 +104,7 @@ function renderTabs() {
   ['energy-tabs', 'table-tabs'].forEach(id => {
     const el = document.getElementById(id);
     el.innerHTML = DATA.days.map((name, i) =>
-      `<button class="day-tab ${i===0?'active':''}" data-day="${i}" onclick="selectDay(${i})">${name.substring(0,3)}</button>`
+      `<button class="day-tab ${i===0?'active':''}" data-day="${i}" onclick="selectDay(${i})">${dayShort(name)}</button>`
     ).join('') + `<button class="day-tab" data-day="all" onclick="selectDay('all')">Svi</button>`;
   });
 }
@@ -107,7 +139,7 @@ const tooltipStyle = {
 
 function renderCharts(day) {
   const slice = getSlice(day);
-  const labels = slice.map(h => day === 'all' ? `${DATA.days[h.day].substring(0,3)} ${h.hour}h` : `${h.hour}:00`);
+  const labels = slice.map(h => day === 'all' ? `${dayShort(DATA.days[h.day])} ${h.hour}h` : `${h.hour}:00`);
   const pctFactor = 100 / DATA.parameters.E_bat;
 
   // Energy Balance
@@ -117,12 +149,12 @@ function renderCharts(day) {
     data: {
       labels,
       datasets: [
-        { label: 'Mreza', data: slice.map(h=>h.grid), backgroundColor: 'rgba(59,130,246,0.65)', stack: 'combined', order: 3, borderRadius: 3 },
-        { label: 'Solar', data: slice.map(h=>h.solar), backgroundColor: 'rgba(245,158,11,0.65)', stack: 'combined', order: 2, borderRadius: 3 },
-        { label: 'Praznjenje', data: slice.map(h=>h.discharge * DATA.parameters.eta_discharge), backgroundColor: 'rgba(244,63,94,0.55)', stack: 'combined', order: 1, borderRadius: 3 },
-        { label: 'Manjak', data: slice.map(h=>h.deficit), backgroundColor: 'rgba(220,38,38,0.8)', stack: 'combined', order: 0, borderRadius: 3 },
-        { label: 'Punjenje', data: slice.map(h=>-h.charge), backgroundColor: 'rgba(16,185,129,0.6)', stack: 'combined', order: 4, borderRadius: 3 },
-        { label: 'Export', data: slice.map(h=>-h.export), backgroundColor: 'rgba(56,189,248,0.55)', stack: 'combined', order: 5, borderRadius: 3 },
+        { label: 'Manjak', data: slice.map(h=>h.deficit), backgroundColor: createHatchPattern(), borderColor: 'rgba(160,160,160,0.5)', borderWidth: 1, stack: 'combined', order: 4, borderRadius: 3 },
+        { label: 'Praznjenje', data: slice.map(h=>h.discharge * DATA.parameters.eta_discharge), backgroundColor: 'rgba(244,63,94,0.55)', stack: 'combined', order: 3, borderRadius: 3 },
+        { label: 'Mreza', data: slice.map(h=>h.grid), backgroundColor: 'rgba(59,130,246,0.65)', stack: 'combined', order: 2, borderRadius: 3 },
+        { label: 'Solar', data: slice.map(h=>h.solar), backgroundColor: 'rgba(245,158,11,0.65)', stack: 'combined', order: 1, borderRadius: 3 },
+        { label: 'Punjenje', data: slice.map(h=>-h.charge), backgroundColor: 'rgba(16,185,129,0.6)', stack: 'combined', order: 5, borderRadius: 3 },
+        { label: 'Export', data: slice.map(h=>-h.export), backgroundColor: 'rgba(56,189,248,0.55)', stack: 'combined', order: 6, borderRadius: 3 },
         { label: 'Potrosnja', data: slice.map(h=>h.consumption), type: 'line',
           borderColor: '#1e293b', borderWidth: 2, borderDash: [6,3],
           pointRadius: 0, fill: false, stack: false, order: -1 }
@@ -215,7 +247,7 @@ function renderTable(day) {
   const slice = getSlice(day);
   const tbody = document.getElementById('table-body');
   tbody.innerHTML = slice.map(h => `<tr>
-    <td>${day==='all' ? DATA.days[h.day].substring(0,3)+' '+h.hour+'h' : h.hour+':00'}</td>
+    <td>${day==='all' ? dayShort(DATA.days[h.day])+' '+h.hour+'h' : h.hour+':00'}</td>
     <td>${h.price.toFixed(1)}</td>
     <td>${h.consumption.toFixed(2)}</td>
     <td class="val-solar">${h.solar.toFixed(2)}</td>
