@@ -1,7 +1,5 @@
 import json
-import numpy as np
 import highspy
-import matplotlib.pyplot as plt
 
 # Učitaj podatke
 with open("Input.json", "r") as f:
@@ -26,6 +24,8 @@ n_bat_min = params["n_bat_min"]             # h - min broj sati u istom režimu 
 price_export = params["price_export"]       # EUR/MWh - cijena prodaje solarne EE u mrežu
 eta_chg = params["eta_charge"]              # efikasnost punjenja (0-1)
 eta_dis = params["eta_discharge"]           # efikasnost pražnjenja (0-1)
+soc_min = params["soc_min"]                 # % - minimalni SOC
+soc_max = params["soc_max"]                 # % - maksimalni SOC
 
 # Stvarna solarna proizvodnja u MW (normalizirani profil 0-1 * instalirana snaga u MW)
 solar_prod = [s * P_solar_inst for s in solar_norm]  # MW
@@ -85,9 +85,9 @@ for t in range(T):
     col_upper.append(P_bat)
     col_cost.append(0.0)
 
-    # soc[t] u postocima (15-90%)
-    col_lower.append(15.0)
-    col_upper.append(90.0)
+    # soc[t] u postocima (soc_min-soc_max%)
+    col_lower.append(soc_min)
+    col_upper.append(soc_max)
     col_cost.append(0.0)
 
     # p_deficit[t] - manjak EE, s visokim kaznenim troškom
@@ -219,14 +219,14 @@ for t in range(T):
     #   => SOC[t] >= 15 + aFRRplus[t] * (100/E_bat)
     indices = [idx_soc(t)]
     values = [1.0]
-    h.addRow(15.0 + aFRRplus[t] * pct_factor, inf, len(indices), indices, values)
+    h.addRow(soc_min + aFRRplus[t] * pct_factor, inf, len(indices), indices, values)
 
     # aFRR- energijska rezerva: SOC mora biti dovoljno nizak da primi aFRRminus 1 sat
     #   SOC[t] <= SOC_max - aFRRminus[t] * pct_factor
     #   => SOC[t] <= 90 - aFRRminus[t] * (100/E_bat)
     indices = [idx_soc(t)]
     values = [1.0]
-    h.addRow(-inf, 90.0 - aFRRminus[t] * pct_factor, len(indices), indices, values)
+    h.addRow(-inf, soc_max - aFRRminus[t] * pct_factor, len(indices), indices, values)
 
 # 5a) Ograničenje prodaje: export + curtailment <= solar_prod
 #     (ne možemo prodati + curtailati više nego što solar proizvodi)
@@ -294,7 +294,7 @@ if status == 2:  # feasible
     print(f"Ukupni manjak EE:         {E_deficit_total:,.2f} MWh")
     # Trošak bez penala za manjak
     cost_no_penalty = obj - E_deficit_total * PENALTY_DEFICIT
-    cost_no_bat = sum(p * c for p, c in zip(prices, consumption))
+    cost_no_bat = sum(p * max(c - s, 0) for p, c, s in zip(prices, consumption, solar_prod))
     print(f"Optimalni tjedni trošak:  {cost_no_penalty:,.2f} EUR (bez penala za manjak)")
     print(f"Trošak bez baterije:      {cost_no_bat:,.2f} EUR (bez penala za manjak)")
     print(f"Ušteda:                   {cost_no_bat - cost_no_penalty:,.2f} EUR")

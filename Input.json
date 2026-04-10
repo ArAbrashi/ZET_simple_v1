@@ -22,7 +22,9 @@
     "n_bat_min": 3,
     "price_export": 30,
     "eta_charge": 0.95,
-    "eta_discharge": 0.95
+    "eta_discharge": 0.95,
+    "soc_min": 15,
+    "soc_max": 90
   },
   "prices": [
     44,

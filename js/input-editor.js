@@ -10,6 +10,8 @@ const PARAMS_DEF = [
   { key: 'price_export',      label: 'Cijena export',     hint: 'Cijena prodaje u mrezu [EUR/MWh]', step: 1 },
   { key: 'eta_charge',        label: 'Eta punjenje',      hint: 'Efikasnost punjenja [0-1]',     step: 0.01 },
   { key: 'eta_discharge',     label: 'Eta praznjenje',    hint: 'Efikasnost praznjenja [0-1]',   step: 0.01 },
+  { key: 'soc_min',           label: 'SOC min',           hint: 'Minimalni SOC [%]',             step: 1 },
+  { key: 'soc_max',           label: 'SOC max',           hint: 'Maksimalni SOC [%]',            step: 1 },
   { key: 'PENALTY_DEFICIT',   label: 'Penal manjak',      hint: 'Kazneni trosak [EUR/MWh]',      step: 1000 },
 ];
 
@@ -426,6 +428,8 @@ function buildJSON() {
       price_export: state.parameters.price_export,
       eta_charge: state.parameters.eta_charge,
       eta_discharge: state.parameters.eta_discharge,
+      soc_min: state.parameters.soc_min,
+      soc_max: state.parameters.soc_max,
     },
     prices: state.prices,
     consumption: state.consumption,
