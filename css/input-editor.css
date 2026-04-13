@@ -595,6 +595,30 @@ body {
   gap: 8px;
 }
 
+.chart-info-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 6px;
+  min-height: 26px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 8px;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  flex-wrap: wrap;
+}
+
+.info-placeholder { color: var(--text-muted); font-style: italic; }
+.info-hour { font-weight: 600; color: var(--text-dark); }
+.info-sep { color: var(--border-hover); user-select: none; }
+.info-val { font-weight: 600; color: var(--text-dark); }
+.info-orig { color: var(--text-muted); }
+.info-diff { font-weight: 600; }
+.info-diff.up, .info-pct.up { color: var(--emerald); }
+.info-diff.dn, .info-pct.dn { color: var(--rose); }
+.info-pct { font-weight: 500; }
+.info-unit { font-size: 0.65rem; color: var(--text-muted); font-weight: 400; }
+
 .chart-box canvas {
   width: 100% !important;
   height: 200px !important;
@@ -705,6 +729,34 @@ body {
   height: 14px;
   fill: currentColor;
   flex-shrink: 0;
+}
+
+.drag-toggle-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--border);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+.drag-reset-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.68rem;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.drag-reset-btn:hover {
+  color: var(--amber);
+  background: rgba(245,158,11,0.06);
 }
 
 /* ── TABLE VIEW ── */

@@ -26,11 +26,11 @@ const PARAMS_DEF = [
 ];
 
 const CHART_CONFIGS = [
-  { id: 'chart-price',  arr: 'prices',      color: '#8b5cf6', bg: 'rgba(139,92,246,0.08)', label: 'Cijena', round: 1 },
-  { id: 'chart-cons',   arr: 'consumption', color: '#0ea5e9', bg: 'rgba(14,165,233,0.08)',  label: 'Potrosnja', round: 2 },
-  { id: 'chart-solar',  arr: 'solar',       color: '#f59e0b', bg: 'rgba(245,158,11,0.08)',  label: 'Solar', round: 2 },
-  { id: 'chart-afrrp',  arr: 'aFRRplus',    color: '#10b981', bg: 'rgba(16,185,129,0.08)',  label: 'aFRR+', round: 2 },
-  { id: 'chart-afrrm',  arr: 'aFRRminus',   color: '#f43f5e', bg: 'rgba(244,63,94,0.08)',   label: 'aFRR-', round: 2 },
+  { id: 'chart-price',  arr: 'prices',      color: '#8b5cf6', bg: 'rgba(139,92,246,0.08)', label: 'Cijena',    unit: 'EUR/MWh', round: 1 },
+  { id: 'chart-cons',   arr: 'consumption', color: '#0ea5e9', bg: 'rgba(14,165,233,0.08)',  label: 'Potrosnja', unit: 'MW',      round: 2 },
+  { id: 'chart-solar',  arr: 'solar',       color: '#f59e0b', bg: 'rgba(245,158,11,0.08)',  label: 'Solar',     unit: '',        round: 2 },
+  { id: 'chart-afrrp',  arr: 'aFRRplus',    color: '#10b981', bg: 'rgba(16,185,129,0.08)',  label: 'aFRR+',     unit: 'MW',      round: 2 },
+  { id: 'chart-afrrm',  arr: 'aFRRminus',   color: '#f43f5e', bg: 'rgba(244,63,94,0.08)',   label: 'aFRR-',     unit: 'MW',      round: 2 },
 ];
 
 let state = {
@@ -75,6 +75,7 @@ const tooltipStyle = {
   boxPadding: 4,
 };
 
+
 function renderDragToggles() {
   CHART_CONFIGS.forEach(cfg => {
     const el = document.getElementById('drag-toggle-' + cfg.id);
@@ -87,6 +88,10 @@ function renderDragToggles() {
       <button class="drag-mode-btn ${dragModes[cfg.id]==='all'?'active':''}"
         onclick="setDragMode('${cfg.id}','all')" title="Pomakni sve tocke zajedno">
         ${SVG_ALL}<span>Sve</span>
+      </button>
+      <div class="drag-toggle-sep"></div>
+      <button class="drag-reset-btn" onclick="resetChart('${cfg.id}')" title="Vrati na pocetne vrijednosti">
+        &#8635; Reset
       </button>`;
   });
 }
@@ -94,6 +99,23 @@ function renderDragToggles() {
 function setDragMode(chartId, mode) {
   dragModes[chartId] = mode;
   renderDragToggles();
+}
+
+function resetChart(cfgId) {
+  const cfg = CHART_CONFIGS.find(c => c.id === cfgId);
+  if (!cfg) return;
+  const offset = currentDay * 24;
+  for (let h = 0; h < 24; h++) {
+    state[cfg.arr][offset + h] = originalState[cfg.arr][offset + h];
+  }
+  const origData = getOriginalDaySlice(cfg.arr, currentDay);
+  const chart = charts[cfgId];
+  chart.data.datasets[1].data = [...origData];
+  chart.options.scales.y.max = Math.ceil(Math.max(...origData) * 1.5 * 10) / 10 || 1;
+  chart.update('none');
+  renderHourlyTable(currentDay);
+  updateBadge(cfgId, origData);
+  showToast(`${cfg.label} resetiran na pocetne vrijednosti`);
 }
 
 fetch('Input.json')
@@ -276,11 +298,22 @@ function updateBadge(cfgId, data) {
 function buildAllCharts(day) {
   CHART_CONFIGS.forEach(cfg => {
     if (charts[cfg.id]) charts[cfg.id].destroy();
-    const ctx = document.getElementById(cfg.id).getContext('2d');
+    const canvas = document.getElementById(cfg.id);
+    const ctx = canvas.getContext('2d');
     const data = getDaySlice(cfg.arr, day);
     const origData = getOriginalDaySlice(cfg.arr, day);
 
     updateBadge(cfg.id, data);
+
+    // Info bar — injektira se jednom iznad canvasa
+    let infoBar = document.getElementById('info-' + cfg.id);
+    if (!infoBar) {
+      infoBar = document.createElement('div');
+      infoBar.id = 'info-' + cfg.id;
+      infoBar.className = 'chart-info-bar';
+      canvas.parentNode.insertBefore(infoBar, canvas);
+    }
+    infoBar.innerHTML = '<span class="info-placeholder">Prijeđite mišem za detalje</span>';
 
     let dragStartValue = null;
     let dragStartData = null;
@@ -334,6 +367,7 @@ function buildAllCharts(day) {
           dragData: {
             round: cfg.round,
             showTooltip: true,
+            showTooltip: false,
             dragX: false,
             onDragStart: (_e, datasetIndex, _index, value) => {
               if (datasetIndex !== 1) return false;
@@ -347,13 +381,20 @@ function buildAllCharts(day) {
               if (mode === 'all' && dragStartData) {
                 const delta = value - dragStartValue;
                 const newData = dragStartData.map(v => {
-                  let nv = Math.round((v + delta) * Math.pow(10, cfg.round)) / Math.pow(10, cfg.round);
+                  const nv = Math.round((v + delta) * Math.pow(10, cfg.round)) / Math.pow(10, cfg.round);
                   return Math.max(0, nv);
                 });
+                const newMax = Math.max(...newData);
+                if (newMax >= chart.options.scales.y.max) {
+                  chart.options.scales.y.max = Math.ceil(newMax * 1.05 * 10) / 10;
+                }
                 chart.data.datasets[1].data = newData;
                 chart.update('none');
                 updateBadge(cfg.id, newData);
               } else {
+                if (value >= chart.options.scales.y.max) {
+                  chart.options.scales.y.max = Math.ceil(value * 1.05 * 10) / 10;
+                }
                 const liveData = [...chart.data.datasets[1].data];
                 liveData[index] = value;
                 updateBadge(cfg.id, liveData);
@@ -367,9 +408,13 @@ function buildAllCharts(day) {
               if (mode === 'all' && dragStartData) {
                 const delta = value - dragStartValue;
                 const finalData = dragStartData.map(v => {
-                  let nv = Math.round((v + delta) * Math.pow(10, cfg.round)) / Math.pow(10, cfg.round);
+                  const nv = Math.round((v + delta) * Math.pow(10, cfg.round)) / Math.pow(10, cfg.round);
                   return Math.max(0, nv);
                 });
+                const newMax = Math.max(...finalData);
+                if (newMax >= chart.options.scales.y.max) {
+                  chart.options.scales.y.max = Math.ceil(newMax * 1.05 * 10) / 10;
+                }
                 chart.data.datasets[1].data = finalData;
                 chart.update('none');
                 for (let h = 0; h < 24; h++) {
@@ -390,16 +435,30 @@ function buildAllCharts(day) {
             }
           },
           tooltip: {
-            ...tooltipStyle,
-            filter: (item) => item.datasetIndex === 1,
-            callbacks: {
-              title: ctx => ctx[0].label,
-              label: ctx => {
-                const orig = charts[cfg.id].data.datasets[0].data[ctx.dataIndex];
-                const diff = ctx.raw - orig;
-                const diffStr = diff !== 0 ? ` (${diff > 0 ? '+' : ''}${diff.toFixed(cfg.round)})` : '';
-                return `${cfg.label}: ${ctx.raw}${diffStr}`;
-              }
+            enabled: false,
+            external: ({ chart, tooltip }) => {
+              const bar = document.getElementById('info-' + cfg.id);
+              if (!bar || tooltip.opacity === 0 || !tooltip.dataPoints?.length) return;
+              const dp = tooltip.dataPoints.find(p => p.datasetIndex === 1);
+              if (!dp) return;
+              const curr = +dp.raw;
+              const orig = +(chart.data.datasets[0].data[dp.dataIndex] ?? curr);
+              const diff = +(curr - orig).toFixed(cfg.round);
+              const sign = diff > 0 ? '+' : '';
+              const cls  = diff > 0 ? 'up' : diff < 0 ? 'dn' : '';
+              const pct  = orig !== 0 ? (diff / orig) * 100 : 0;
+              const u    = cfg.unit ? ` <span class="info-unit">${cfg.unit}</span>` : '';
+              bar.innerHTML =
+                `<span class="info-hour">${dp.label}</span>` +
+                `<span class="info-sep">|</span>` +
+                `<span class="info-val">${curr.toFixed(cfg.round)}${u}</span>` +
+                (Math.abs(diff) > 0
+                  ? `<span class="info-sep">orig</span>` +
+                    `<span class="info-orig">${orig.toFixed(cfg.round)}${u}</span>` +
+                    `<span class="info-sep">|</span>` +
+                    `<span class="info-diff ${cls}">${sign}${Math.abs(diff).toFixed(cfg.round)}${u}</span>` +
+                    `<span class="info-pct ${cls}">(${sign}${pct.toFixed(1)}%)</span>`
+                  : '');
             }
           }
         },
