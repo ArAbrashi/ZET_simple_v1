@@ -10,7 +10,7 @@ consumption = data["consumption"]   # MW
 aFRRplus = data["aFRRplus"]         # MW - ponuđena snaga pozitivne regulacije
 aFRRminus = data["aFRRminus"]      # MW - ponuđena snaga negativne regulacije
 solar_norm = data["solar"]          # kW - normalizirani profil solarne elektrane (1 kW inst.)
-T = len(prices)                     # 168 sati (7 dana)
+T = len(prices)                     # N sati (broj_dana × 24)
 
 # Parametri iz JSON-a
 params = data["parameters"]
@@ -295,14 +295,15 @@ if status == 2:  # feasible
     # Trošak bez penala za manjak
     cost_no_penalty = obj - E_deficit_total * PENALTY_DEFICIT
     cost_no_bat = sum(p * max(c - s, 0) for p, c, s in zip(prices, consumption, solar_prod))
-    print(f"Optimalni tjedni trošak:  {cost_no_penalty:,.2f} EUR (bez penala za manjak)")
-    print(f"Trošak bez baterije:      {cost_no_bat:,.2f} EUR (bez penala za manjak)")
-    print(f"Ušteda:                   {cost_no_bat - cost_no_penalty:,.2f} EUR")
+    n_days = T // 24
+    print(f"Optimalni trošak ({n_days} dana):  {cost_no_penalty:,.2f} EUR (bez penala za manjak)")
+    print(f"Trošak bez baterije:         {cost_no_bat:,.2f} EUR (bez penala za manjak)")
+    print(f"Ušteda:                      {cost_no_bat - cost_no_penalty:,.2f} EUR")
     if E_deficit_total > 0.001:
         print(f"  *** PAŽNJA: konzum nije u potpunosti namiren ({E_deficit_total:,.2f} MWh manjka) ***")
     print()
 
-    for day in range(7):
+    for day in range(len(data["days"])):
         day_name = data["days"][day]
         start = day * 24
         end = start + 24
@@ -311,7 +312,7 @@ if status == 2:  # feasible
         print(f"{day_name:12s} | Mreža: {day_grid:6.1f} MWh | Trošak: {day_cost:8.2f} EUR | "
               f"SOC kraj: {sol[idx_soc(end - 1)]:.1f}%")
 
-    for day in range(7):
+    for day in range(len(data["days"])):
         day_name = data["days"][day]
         start = day * 24
         end = start + 24

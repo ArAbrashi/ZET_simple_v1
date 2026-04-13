@@ -1,4 +1,14 @@
-const DAYS = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+let DAYS = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+const DAY_HR_ED = {
+  'Monday': 'Pon', 'Tuesday': 'Uto', 'Wednesday': 'Sri',
+  'Thursday': 'Cet', 'Friday': 'Pet', 'Saturday': 'Sub', 'Sunday': 'Ned'
+};
+function edDayShort(name) {
+  const base = name.replace(/ T\d+$/, '');
+  const week = name.match(/ (T\d+)$/);
+  const hr = DAY_HR_ED[base] || base.substring(0, 3);
+  return week ? `${hr} ${week[1]}` : hr;
+}
 const HOURS_LABELS = Array.from({length:24}, (_,i) => String(i).padStart(2,'0')+':00');
 const PARAMS_DEF = [
   { key: 'P_bat',             label: 'P bat',             hint: 'Max snaga baterije [MW]',       step: 0.1 },
@@ -89,6 +99,7 @@ function setDragMode(chartId, mode) {
 fetch('Input.json')
   .then(r => r.json())
   .then(data => {
+    if (data.days) DAYS = data.days;
     state.parameters = { ...data.parameters };
     state.prices = [...data.prices];
     state.consumption = [...data.consumption];
@@ -105,6 +116,8 @@ fetch('Input.json')
   .catch(() => { init(); });
 
 function init() {
+  const sub = document.getElementById('hourly-sub');
+  if (sub) sub.innerHTML = `${DAYS.length} dana x 24 sata &mdash; cijene, potrosnja, solar, aFRR`;
   renderParams();
   renderDayTabs();
   renderCopySelects();
@@ -129,7 +142,7 @@ function renderParams() {
 function renderDayTabs() {
   const el = document.getElementById('day-tabs');
   el.innerHTML = DAYS.map((name, i) =>
-    `<button class="tab-btn ${i===0?'active':''}" onclick="selectDay(${i})">${name}</button>`
+    `<button class="tab-btn ${i===0?'active':''}" onclick="selectDay(${i})">${edDayShort(name)}</button>`
   ).join('');
 }
 
@@ -412,7 +425,7 @@ function updateAllCharts(day) {
 function buildJSON() {
   saveCurrentTable();
   return {
-    description: "Hourly electricity prices and factory consumption, 7 days x 24 hours",
+    description: `Hourly electricity prices and factory consumption, ${DAYS.length} days x 24 hours`,
     days: DAYS,
     price_unit: "EUR/MWh",
     consumption_unit: "MW",

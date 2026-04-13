@@ -1,8 +1,8 @@
-# Podravka BESS — Claude Code Project Guide
+# ZET_simple — Claude Code Project Guide
 
 ## Overview
 
-Battery Energy Storage System (BESS) optimisation tool for Podravka.
+Battery Energy Storage System (BESS) optimisation tool for ZET.
 Uses a MILP solver (HiGHS) to find the optimal weekly battery charge/discharge schedule
 minimising electricity cost while honouring aFRR ancillary service commitments.
 
@@ -23,7 +23,7 @@ The project consists of:
 ### Start the server
 ```bash
 # Navigate to the project folder first (important on Windows — cd alone won't switch drives)
-cd /d D:\06_Programiranje\Claude\Podravka_test
+cd /d D:\06_Programiranje\Claude\ZET_simple_v1
 
 # Activate Anaconda environment (if not already active)
 conda activate mojTestEnv
@@ -47,7 +47,7 @@ Reads `Input.json`, writes `results.json`.
 ## File structure
 
 ```
-Podravka_test/
+ZET_simple_v1/
 ├── main.py               # HiGHS MILP optimisation engine
 ├── server.py             # Local HTTP server (port 8002)
 ├── Input.json            # Optimisation inputs (edit via input-editor or directly)

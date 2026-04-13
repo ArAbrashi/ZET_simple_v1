@@ -21,8 +21,23 @@ const DAY_HR = {
   'Monday': 'Ponedjeljak', 'Tuesday': 'Utorak', 'Wednesday': 'Srijeda',
   'Thursday': 'Cetvrtak', 'Friday': 'Petak', 'Saturday': 'Subota', 'Sunday': 'Nedjelja'
 };
-function dayName(eng) { return DAY_HR[eng] || eng; }
-function dayShort(eng) { return (DAY_HR[eng] || eng).substring(0, 3); }
+function stripWeek(eng) { return (eng || '').replace(/ T\d+$/, ''); }
+function dayName(eng) { return DAY_HR[stripWeek(eng)] || eng; }
+function dayShort(eng) { return (DAY_HR[stripWeek(eng)] || (eng||'')).substring(0, 3); }
+function dayShortWeek(i) {
+  const name = (DATA.days && DATA.days[i]) ? DATA.days[i] : '';
+  const base = stripWeek(name);
+  const hr = DAY_HR[base] ? DAY_HR[base].substring(0, 3) : (base.substring(0, 3) || `D${i+1}`);
+  const week = Math.floor(i / 7) + 1;
+  return DATA.days.length <= 7 ? hr : `${hr} T${week}`;
+}
+function dayNameWeek(i) {
+  const name = (DATA.days && DATA.days[i]) ? DATA.days[i] : '';
+  const base = stripWeek(name);
+  const hr = DAY_HR[base] || base || `Dan ${i+1}`;
+  const week = Math.floor(i / 7) + 1;
+  return DATA.days.length <= 7 ? hr : `${hr} T${week}`;
+}
 
 function createHatchPattern() {
   const size = 8;
@@ -54,6 +69,14 @@ function fmt(n, d=2) {
 }
 
 function init() {
+  const n = DATA.days.length;
+  const weeks = Math.round(n / 7);
+  const titleEl = document.getElementById('header-title');
+  if (titleEl) {
+    titleEl.innerHTML = weeks > 1
+      ? `<em>${weeks}-tjedna optimizacija</em><br>energetskog sustava`
+      : `Tjedna <em>optimizacija</em><br>energetskog sustava`;
+  }
   renderKPI();
   renderDailyCards();
   renderTabs();
@@ -64,7 +87,7 @@ function init() {
 function renderKPI() {
   const s = DATA.summary;
   const cards = [
-    { label: 'Optimalni trosak', value: fmt(s.cost_optimized,0), unit: 'EUR / tjedan', cls: 'cyan', icon: '&#9670;' },
+    { label: 'Optimalni trosak', value: fmt(s.cost_optimized,0), unit: `EUR / ${DATA.days.length} dana`, cls: 'cyan', icon: '&#9670;' },
     { label: 'Usteda', value: fmt(s.savings,0), unit: 'EUR vs. bez baterije', cls: 'emerald', icon: '&#9650;' },
     { label: 'Mreza', value: fmt(s.E_grid_total,1), unit: 'MWh ukupno', cls: 'violet', icon: '&#9889;' },
     { label: 'Solar', value: fmt(s.E_solar_total,1), unit: 'MWh proizvedeno', cls: 'amber', icon: '&#9728;' },
@@ -83,7 +106,7 @@ function renderKPI() {
 
 function renderDailyCards() {
   const grid = document.getElementById('daily-grid');
-  grid.innerHTML = DATA.days.map((name, i) => {
+  grid.innerHTML = DATA.days.map((_name, i) => {
     const dayData = DATA.hourly.filter(h => h.day === i);
     const costOpt = dayData.reduce((s,h) => s + h.price * h.grid - DATA.parameters.price_export * h.export, 0);
     const costNoBat = dayData.reduce((s,h) => s + h.price * Math.max(h.consumption - h.solar, 0), 0);
@@ -92,7 +115,7 @@ function renderDailyCards() {
     const gridMwh = dayData.reduce((s,h) => s + h.grid, 0);
     return `
       <div class="daily-card ${i===0?'active':''}" onclick="selectDay(${i})">
-        <div class="day-name">${dayName(name)}</div>
+        <div class="day-name">${dayNameWeek(i)}</div>
         <div class="day-cost">${fmt(cost,0)} EUR</div>
         <div class="day-savings">usteda ${fmt(savings,0)} EUR</div>
         <div class="day-grid-mwh">${fmt(gridMwh,1)} MWh mreza</div>
@@ -103,8 +126,8 @@ function renderDailyCards() {
 function renderTabs() {
   ['energy-tabs', 'table-tabs'].forEach(id => {
     const el = document.getElementById(id);
-    el.innerHTML = DATA.days.map((name, i) =>
-      `<button class="day-tab ${i===0?'active':''}" data-day="${i}" onclick="selectDay(${i})">${dayShort(name)}</button>`
+    el.innerHTML = DATA.days.map((_name, i) =>
+      `<button class="day-tab ${i===0?'active':''}" data-day="${i}" onclick="selectDay(${i})">${dayShortWeek(i)}</button>`
     ).join('') + `<button class="day-tab" data-day="all" onclick="selectDay('all')">Svi</button>`;
   });
 }
@@ -139,8 +162,9 @@ const tooltipStyle = {
 
 function renderCharts(day) {
   const slice = getSlice(day);
-  const labels = slice.map(h => day === 'all' ? `${dayShort(DATA.days[h.day])} ${h.hour}h` : `${h.hour}:00`);
+  const labels = slice.map(h => day === 'all' ? `${dayShortWeek(h.day)} ${h.hour}h` : `${h.hour}:00`);
   const pctFactor = 100 / DATA.parameters.E_bat;
+  const xTickLimit = day === 'all' ? DATA.days.length * 2 : 24;
 
   // Energy Balance
   if (energyChart) energyChart.destroy();
@@ -168,7 +192,7 @@ function renderCharts(day) {
         tooltip: { ...tooltipStyle, callbacks: { label: ctx => `${ctx.dataset.label}: ${Math.abs(ctx.raw).toFixed(2)} MW` } }
       },
       scales: {
-        x: { grid: { color: 'rgba(232,228,222,0.5)' }, ticks: { color: '#94a3b8', font: { family: 'Outfit', size: 11 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 24 } },
+        x: { grid: { color: 'rgba(232,228,222,0.5)' }, ticks: { color: '#94a3b8', font: { family: 'Outfit', size: 11 }, maxRotation: 0, autoSkip: true, maxTicksLimit: xTickLimit } },
         y: { grid: { color: 'rgba(232,228,222,0.5)' }, ticks: { color: '#94a3b8', font: { family: 'Outfit', size: 11 } }, title: { display: true, text: 'Snaga [MW]', color: '#94a3b8', font: { family: 'DM Serif Display', size: 13 } } }
       }
     }
@@ -247,7 +271,7 @@ function renderTable(day) {
   const slice = getSlice(day);
   const tbody = document.getElementById('table-body');
   tbody.innerHTML = slice.map(h => `<tr>
-    <td>${day==='all' ? dayShort(DATA.days[h.day])+' '+h.hour+'h' : h.hour+':00'}</td>
+    <td>${day==='all' ? dayShortWeek(h.day)+' '+h.hour+'h' : h.hour+':00'}</td>
     <td>${h.price.toFixed(1)}</td>
     <td>${h.consumption.toFixed(2)}</td>
     <td class="val-solar">${h.solar.toFixed(2)}</td>
