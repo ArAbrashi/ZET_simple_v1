@@ -308,6 +308,43 @@ body {
   gap: 16px;
 }
 
+.param-group {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px 22px 22px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 8px rgba(10,22,40,0.03);
+}
+
+.param-group:last-child {
+  margin-bottom: 0;
+}
+
+.param-group-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-family: 'DM Serif Display', serif;
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--text-dark);
+  margin-bottom: 22px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.param-group-title .group-icon {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  flex-shrink: 0;
+  background: transparent !important;
+}
+
 .param-item {
   display: flex;
   flex-direction: column;

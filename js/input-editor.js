@@ -127,16 +127,34 @@ function init() {
 }
 
 function renderParams() {
-  const grid = document.getElementById('param-grid');
-  grid.innerHTML = PARAMS_DEF.map(p => `
-    <div class="param-item">
+  const container = document.getElementById('param-grid');
+  const BAT_KEYS = ['P_bat','E_bat','SOC_init','n_bat_min','eta_charge','eta_discharge','soc_min','soc_max'];
+  const batParams   = PARAMS_DEF.filter(p =>  BAT_KEYS.includes(p.key));
+  const otherParams = PARAMS_DEF.filter(p => !BAT_KEYS.includes(p.key));
+
+  function paramHTML(p) {
+    return `<div class="param-item">
       <div class="param-label">${p.label}</div>
       <input class="param-input" type="number" step="${p.step}"
         value="${state.parameters[p.key] ?? 0}"
         onchange="state.parameters['${p.key}'] = parseFloat(this.value) || 0">
       <div class="param-hint">${p.hint}</div>
-    </div>
-  `).join('');
+    </div>`;
+  }
+
+  function groupHTML(icon, iconStyle, title, params) {
+    return `<div class="param-group">
+      <div class="param-group-title">
+        <span class="group-icon" style="${iconStyle}">${icon}</span>
+        ${title}
+      </div>
+      <div class="param-grid">${params.map(paramHTML).join('')}</div>
+    </div>`;
+  }
+
+  container.innerHTML =
+    groupHTML('&#128267;', 'background:rgba(59,130,246,0.1);color:var(--blue-accent)', 'Baterija', batParams) +
+    groupHTML('&#9881;',   'background:rgba(16,185,129,0.1);color:var(--emerald)',     'Mreža i ostalo', otherParams);
 }
 
 function renderDayTabs() {
@@ -317,12 +335,12 @@ function buildAllCharts(day) {
             round: cfg.round,
             showTooltip: true,
             dragX: false,
-            onDragStart: (e, datasetIndex, index, value) => {
+            onDragStart: (_e, datasetIndex, _index, value) => {
               if (datasetIndex !== 1) return false;
               dragStartValue = value;
               dragStartData = [...charts[cfg.id].data.datasets[1].data];
             },
-            onDrag: (e, datasetIndex, index, value) => {
+            onDrag: (_e, datasetIndex, index, value) => {
               if (datasetIndex !== 1) return false;
               const chart = charts[cfg.id];
               const mode = dragModes[cfg.id];
@@ -341,7 +359,7 @@ function buildAllCharts(day) {
                 updateBadge(cfg.id, liveData);
               }
             },
-            onDragEnd: (e, datasetIndex, index, value) => {
+            onDragEnd: (_e, datasetIndex, index, value) => {
               if (datasetIndex !== 1) return;
               const chart = charts[cfg.id];
               const mode = dragModes[cfg.id];
