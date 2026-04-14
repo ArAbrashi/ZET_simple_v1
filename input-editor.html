@@ -102,6 +102,12 @@
       <div class="chart-box full-width" style="margin-bottom:18px">
         <div class="chart-box-title">
           <span style="color:var(--violet)">&#9830;</span> Cijena elektricne energije [EUR/MWh]
+          <span class="energy-badge-wrap">
+            <span class="energy-badge-orig" id="badge-price-orig"></span>
+            <span style="color:var(--text-muted);font-size:0.72rem;font-weight:400;">avg</span>
+            <span class="energy-badge" id="badge-price" style="color:var(--violet);border-color:var(--violet)">0.0 EUR/MWh</span>
+            <span class="energy-pct" id="badge-price-pct"></span>
+          </span>
           <span id="drag-toggle-chart-price" class="drag-mode-toggle"></span>
         </div>
         <canvas id="chart-price"></canvas>

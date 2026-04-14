@@ -22,7 +22,7 @@
     "P_bat": 0.7,
     "E_bat": 10,
     "SOC_init": 15,
-    "P_grid_max": 4,
+    "P_grid_max": 3,
     "PENALTY_DEFICIT": 100000,
     "verbose": true,
     "P_solar_installed": 2.5,

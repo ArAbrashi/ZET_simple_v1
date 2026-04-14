@@ -97,6 +97,9 @@ function renderDragToggles() {
       <div class="drag-toggle-sep"></div>
       <button class="drag-reset-btn" onclick="resetChart('${cfg.id}')" title="Vrati na pocetne vrijednosti">
         &#8635; Reset all
+      </button>
+      <button class="drag-reset-btn" onclick="zeroChart('${cfg.id}')" title="Postavi sve vrijednosti na nulu" style="color:var(--rose);border-color:var(--rose);">
+        &#8709; Postavi sve na nula
       </button>`;
   });
 }
@@ -104,6 +107,26 @@ function renderDragToggles() {
 function setDragMode(chartId, mode) {
   dragModes[chartId] = mode;
   renderDragToggles();
+}
+
+function zeroChart(cfgId) {
+  const cfg = CHART_CONFIGS.find(c => c.id === cfgId);
+  if (!cfg) return;
+  const offset = currentDay * SLOTS_PER_DAY;
+  for (let h = 0; h < SLOTS_PER_DAY; h++) {
+    state[cfg.arr][offset + h] = 0;
+  }
+  const zeros = new Array(SLOTS_PER_DAY).fill(0);
+  const chart = charts[cfgId];
+  chart.data.datasets[1].data = [...zeros];
+  chart.options.scales.y.max = Math.ceil(Math.max(...getOriginalDaySlice(cfg.arr, currentDay)) * 1.5 * 10) / 10 || 1;
+  if (cfg.allowNegative) {
+    chart.options.scales.y.min = Math.floor(Math.min(...getOriginalDaySlice(cfg.arr, currentDay), 0) * 1.5 * 10) / 10;
+  }
+  chart.update('none');
+  renderHourlyTable(currentDay);
+  updateBadge(cfgId, zeros);
+  showToast(`${cfg.label} — sve vrijednosti postavljene na nulu`);
 }
 
 function resetChart(cfgId) {
@@ -257,6 +280,7 @@ function saveCurrentTable() {
 }
 
 const ENERGY_BADGES = {
+  'chart-price': { badgeId: 'badge-price', unit: 'EUR/MWh', mode: 'avg' },
   'chart-cons':  { badgeId: 'badge-cons',  unit: 'MWh', mult: 0.25 },
   'chart-solar': { badgeId: 'badge-solar', unit: 'MWh', mult: (state.parameters.P_solar_installed || 2.5) * 0.25 },
 };
@@ -272,37 +296,49 @@ function getOriginalDaySlice(arr, day) {
 function updateBadge(cfgId, data) {
   const badge = ENERGY_BADGES[cfgId];
   if (!badge) return;
-  let mult = badge.mult;
-  if (cfgId === 'chart-solar') mult = (state.parameters.P_solar_installed || 2.5) * 0.25;
-  const sum = data.reduce((s, v) => s + v, 0) * mult;
 
   const arrKey = CHART_CONFIGS.find(c => c.id === cfgId).arr;
   const origData = getOriginalDaySlice(arrKey, currentDay);
-  const origSum = origData.reduce((s, v) => s + v, 0) * mult;
+
+  let val, origVal;
+  if (badge.mode === 'avg') {
+    val     = data.length     ? data.reduce((s, v) => s + v, 0) / data.length         : 0;
+    origVal = origData.length ? origData.reduce((s, v) => s + v, 0) / origData.length : 0;
+  } else {
+    let mult = badge.mult;
+    if (cfgId === 'chart-solar') mult = (state.parameters.P_solar_installed || 2.5) * 0.25;
+    val     = data.reduce((s, v) => s + v, 0) * mult;
+    origVal = origData.reduce((s, v) => s + v, 0) * mult;
+  }
 
   const el = document.getElementById(badge.badgeId);
   if (el) {
-    el.textContent = sum.toFixed(1) + ' ' + badge.unit;
+    el.textContent = val.toFixed(1) + ' ' + badge.unit;
     el.classList.remove('changed');
     void el.offsetWidth;
     el.classList.add('changed');
   }
 
   const origEl = document.getElementById(badge.badgeId + '-orig');
-  const hasChanged = Math.abs(sum - origSum) > 0.05;
+  const hasChanged = Math.abs(val - origVal) > 0.05;
   if (origEl) {
-    origEl.innerHTML = `<span class="info-sep">orig</span>\u2002${origSum.toFixed(1)} ${badge.unit}`;
+    origEl.innerHTML = `<span class="info-sep">orig</span>\u2002${origVal.toFixed(1)} ${badge.unit}`;
     origEl.classList.toggle('visible', hasChanged);
   }
 
   const pctEl = document.getElementById(badge.badgeId + '-pct');
   if (pctEl) {
-    if (hasChanged && origSum > 0) {
-      const pct = ((sum - origSum) / origSum) * 100;
-      const sign = pct > 0 ? '+' : '';
-      pctEl.textContent = sign + pct.toFixed(1) + '%';
+    if (hasChanged && origVal !== 0) {
+      const delta = val - origVal;
+      const pct   = (delta / Math.abs(origVal)) * 100;
+      const sign  = delta > 0 ? '+' : '';
+      if (badge.mode === 'avg') {
+        pctEl.textContent = sign + delta.toFixed(1) + ' ' + badge.unit + '  (' + sign + pct.toFixed(1) + '%)';
+      } else {
+        pctEl.textContent = sign + pct.toFixed(1) + '%';
+      }
       pctEl.classList.remove('up', 'down');
-      pctEl.classList.add(pct > 0 ? 'up' : 'down');
+      pctEl.classList.add(delta > 0 ? 'up' : 'down');
       pctEl.classList.add('visible');
     } else {
       pctEl.classList.remove('visible');
