@@ -91,7 +91,7 @@ function renderDragToggles() {
       </button>
       <div class="drag-toggle-sep"></div>
       <button class="drag-reset-btn" onclick="resetChart('${cfg.id}')" title="Vrati na pocetne vrijednosti">
-        &#8635; Reset
+        &#8635; Reset all
       </button>`;
   });
 }
@@ -426,11 +426,11 @@ function buildAllCharts(day) {
     ;(function attachDrag() {
       if (canvas._removeDragListeners) canvas._removeDragListeners();
 
-      let isDragging       = false;
-      let dragIndex        = null;
-      let dragStartPxY     = null;
-      let dragStartVal     = null;
-      let dragStartAllData = null;
+      let isDragging         = false;
+      let dragIndex          = null;
+      let dragStartCursorVal = null;  // cursor Y in data-space at pointerdown
+      let dragStartVal       = null;
+      let dragStartAllData   = null;
 
       function findPointIndex(offsetX, offsetY) {
         const chart = charts[cfg.id];
@@ -446,23 +446,38 @@ function buildAllCharts(day) {
         return best;
       }
 
+      // Expand Y axis when a point reaches the current max.
+      // Re-anchors dragStartCursorVal so the delta stays consistent after
+      // the scale change (prevents a jump in point position).
+      function expandIfNeeded(chart, peakVal, offsetY) {
+        if (peakVal < chart.options.scales.y.max) return;
+        const scale        = chart.scales.y;
+        const preCursorVal = scale.getValueForPixel(offsetY);
+        chart.options.scales.y.max = Math.ceil(peakVal * 1.05 * 10) / 10;
+        chart.update('none');
+        dragStartCursorVal += scale.getValueForPixel(offsetY) - preCursorVal;
+      }
+
       function applyDelta(offsetY) {
-        const chart  = charts[cfg.id];
-        const scale  = chart.scales.y;
-        const delta  = scale.getValueForPixel(offsetY) - scale.getValueForPixel(dragStartPxY);
-        const p      = Math.pow(10, cfg.round);
-        const curMax = chart.options.scales.y.max;
-        const mode   = dragModes[cfg.id];
+        const chart      = charts[cfg.id];
+        const scale      = chart.scales.y;
+        const p          = Math.pow(10, cfg.round);
+        const mode       = dragModes[cfg.id];
+        const cursorVal  = scale.getValueForPixel(offsetY);
+        const delta      = cursorVal - dragStartCursorVal;
 
         if (mode === 'all' && dragStartAllData) {
           const newData = dragStartAllData.map(v =>
-            Math.min(curMax, Math.max(0, Math.round((v + delta) * p) / p))
+            Math.max(0, Math.round((v + delta) * p) / p)
           );
+          // Expand based on the highest point among all 24, not just the dragged one
+          expandIfNeeded(chart, Math.max(...newData), offsetY);
           chart.data.datasets[1].data = newData;
           chart.update('none');
           updateBadge(cfg.id, newData);
         } else {
-          const corrected = Math.min(curMax, Math.max(0, Math.round((dragStartVal + delta) * p) / p));
+          const corrected = Math.max(0, Math.round((dragStartVal + delta) * p) / p);
+          expandIfNeeded(chart, corrected, offsetY);
           chart.data.datasets[1].data[dragIndex] = corrected;
           chart.update('none');
           updateBadge(cfg.id, chart.data.datasets[1].data);
@@ -474,12 +489,6 @@ function buildAllCharts(day) {
         const offset      = currentDay * 24;
         const currentData = chart.data.datasets[1].data;
         const mode        = dragModes[cfg.id];
-
-        const maxVal = Math.max(...currentData);
-        if (maxVal >= chart.options.scales.y.max) {
-          chart.options.scales.y.max = Math.ceil(maxVal * 1.05 * 10) / 10;
-          chart.update('none');
-        }
 
         if (mode === 'all') {
           for (let h = 0; h < 24; h++) {
@@ -503,11 +512,11 @@ function buildAllCharts(day) {
         const idx = findPointIndex(e.offsetX, e.offsetY);
         if (idx === -1) return;
         canvas.setPointerCapture(e.pointerId);
-        isDragging       = true;
-        dragIndex        = idx;
-        dragStartAllData = [...charts[cfg.id].data.datasets[1].data];
-        dragStartVal     = dragStartAllData[idx];
-        dragStartPxY     = e.offsetY;
+        isDragging         = true;
+        dragIndex          = idx;
+        dragStartAllData   = [...charts[cfg.id].data.datasets[1].data];
+        dragStartVal       = dragStartAllData[idx];
+        dragStartCursorVal = charts[cfg.id].scales.y.getValueForPixel(e.offsetY);
         e.preventDefault();
       }
 
@@ -521,7 +530,7 @@ function buildAllCharts(day) {
         isDragging = false;
         canvas.releasePointerCapture(e.pointerId);
         commitDrag();
-        dragIndex = dragStartPxY = dragStartVal = dragStartAllData = null;
+        dragIndex = dragStartCursorVal = dragStartVal = dragStartAllData = null;
       }
 
       canvas.addEventListener('pointerdown', onPointerDown, { capture: true });
