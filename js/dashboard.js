@@ -1,5 +1,5 @@
 let DATA = null;
-let energyChart = null, socChart = null, priceChart = null;
+let energyChart = null, batteryChart = null, socChart = null, priceChart = null;
 let selectedDay = 0;
 
 // Chart.js global theme
@@ -205,6 +205,31 @@ function renderCharts(day) {
     }
   });
 
+  // Battery Chart
+  if (batteryChart) batteryChart.destroy();
+  batteryChart = new Chart(document.getElementById('batteryChart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Punjenje', data: slice.map(h => h.charge), backgroundColor: 'rgba(16,185,129,0.65)', stack: 'bat', order: 1, borderRadius: 3 },
+        { label: 'Praznjenje', data: slice.map(h => -h.discharge * DATA.parameters.eta_discharge), backgroundColor: 'rgba(244,63,94,0.55)', stack: 'bat', order: 2, borderRadius: 3 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: '#64748b', font: { family: 'Outfit', size: 12 }, boxWidth: 14, padding: 18, usePointStyle: true, pointStyle: 'rectRounded' } },
+        tooltip: { ...tooltipStyle, callbacks: { label: ctx => `${ctx.dataset.label}: ${Math.abs(ctx.raw).toFixed(2)} MW` } }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(232,228,222,0.5)' }, ticks: { color: '#94a3b8', font: { family: 'Outfit', size: 11 }, maxRotation: 0, autoSkip: true, maxTicksLimit: xTickLimit } },
+        y: { grid: { color: 'rgba(232,228,222,0.5)' }, ticks: { color: '#94a3b8', font: { family: 'Outfit', size: 11 } }, title: { display: true, text: 'Snaga [MW]', color: '#94a3b8', font: { family: 'DM Serif Display', size: 13 } } }
+      }
+    }
+  });
+
   // SOC Chart
   if (socChart) socChart.destroy();
   const socLower = slice.map(h => 15 + h.aFRRplus * pctFactor);
@@ -272,6 +297,34 @@ function renderCharts(day) {
       }
     }
   });
+}
+
+function exportExcel() {
+  const slice = getSlice(selectedDay);
+  const dayLabel = selectedDay === 'all' ? 'Svi dani' : dayNameWeek(selectedDay);
+
+  const header = ['Sat', 'Cijena (EUR/MWh)', 'Potraznja (MW)', 'Solar (MW)',
+                  'Mreza (MW)', 'Punjenje (MW)', 'Praznjenje (MW)', 'Export (MW)',
+                  'Manjak (MW)', 'aFRR+ (MW)', 'aFRR- (MW)', 'SOC (%)'];
+
+  const rows = slice.map(h => [
+    selectedDay === 'all' ? `${dayShortWeek(h.day)} ${slotLabel(h)}` : slotLabel(h),
+    h.price, h.consumption, h.solar,
+    h.grid, h.charge, h.discharge, h.export,
+    h.deficit, h.aFRRplus, h.aFRRminus, h.soc
+  ]);
+
+  const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+
+  // Širine stupaca
+  ws['!cols'] = [10, 18, 16, 12, 12, 14, 16, 12, 12, 12, 12, 10]
+    .map(w => ({ wch: w }));
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, dayLabel.substring(0, 31));
+
+  const filename = `ZET_BESS_${dayLabel.replace(/ /g,'_')}.xlsx`;
+  XLSX.writeFile(wb, filename);
 }
 
 function renderTable(day) {

@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/dashboard.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -54,6 +55,18 @@
     </div>
   </div>
 
+  <!-- BATTERY CHART -->
+  <div class="charts-section">
+    <div class="chart-panel">
+      <div class="chart-panel-header">
+        <div class="chart-panel-icon" style="background:rgba(16,185,129,0.1);color:var(--emerald);">&#9646;</div>
+        <div class="chart-panel-title">Baterija — punjenje i praznjenje</div>
+      </div>
+      <div class="chart-panel-subtitle">Punjenje (pozitivno) i praznjenje (negativno) baterije [MW]</div>
+      <div class="chart-wrapper"><canvas id="batteryChart"></canvas></div>
+    </div>
+  </div>
+
   <!-- SOC + PRICE CHARTS -->
   <div class="two-col">
     <div class="chart-panel">
@@ -79,6 +92,10 @@
     <div class="chart-panel-header" style="margin-bottom:4px">
       <div class="chart-panel-icon" style="background:rgba(56,189,248,0.1);color:var(--sky);">&#9638;</div>
       <div class="chart-panel-title">Detaljni sat-po-sat</div>
+      <button onclick="exportExcel()" title="Izvoz u Excel" style="margin-left:auto;background:none;border:none;cursor:pointer;padding:4px 8px;border-radius:6px;display:flex;align-items:center;gap:6px;color:#217346;font-family:Outfit,sans-serif;font-size:0.85rem;font-weight:600;transition:background 0.15s;" onmouseover="this.style.background='rgba(33,115,70,0.1)'" onmouseout="this.style.background='none'">
+        <img src="Images/Microsoft_Office_Excel_(2025–present).png" width="22" height="22" style="display:block;">
+        Excel
+      </button>
     </div>
     <div class="chart-panel-subtitle" style="margin-bottom:16px">Svi parametri optimizacije po satu</div>
     <div class="day-tabs" id="table-tabs"></div>
