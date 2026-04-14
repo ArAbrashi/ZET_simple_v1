@@ -155,6 +155,18 @@
 
 <div class="toast" id="toast"></div>
 
+<div id="sim-log" style="
+  display:none; position:fixed; bottom:0; left:0; right:0; z-index:9999;
+  background:#0d1b2a; border-top:2px solid #1e3a5f;
+  padding:10px 20px; font-family:'Courier New',monospace; font-size:0.78rem;
+  color:#7dd3fc; line-height:1.6;
+  box-shadow:0 -4px 24px rgba(0,0,0,0.4);
+  transition:opacity 0.4s ease;">
+  <div style="color:#475569;font-size:0.7rem;margin-bottom:4px;letter-spacing:0.05em;">&#9654; main.py</div>
+  <div id="sim-log-line1" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">&nbsp;</div>
+  <div id="sim-log-line2" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">&nbsp;</div>
+</div>
+
 <script src="js/input-editor.js?v=2"></script>
 </body>
 </html>

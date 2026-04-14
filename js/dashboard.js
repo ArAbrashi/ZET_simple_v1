@@ -1,5 +1,5 @@
 let DATA = null;
-let energyChart = null, batteryChart = null, socChart = null, priceChart = null;
+let energyChart = null, batteryChart = null, solarChart = null, socChart = null, priceChart = null;
 let selectedDay = 0;
 
 // Chart.js global theme
@@ -39,15 +39,15 @@ function dayNameWeek(i) {
   return DATA.days.length <= 7 ? hr : `${hr} T${week}`;
 }
 
-function createHatchPattern() {
+function createHatchPattern(bgColor = 'rgba(210,210,210,0.18)', lineColor = 'rgba(160,160,160,0.55)') {
   const size = 8;
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext('2d');
-  ctx.fillStyle = 'rgba(210,210,210,0.18)';
+  ctx.fillStyle = bgColor;
   ctx.fillRect(0, 0, size, size);
-  ctx.strokeStyle = 'rgba(160,160,160,0.55)';
+  ctx.strokeStyle = lineColor;
   ctx.lineWidth = 1.2;
   ctx.beginPath();
   ctx.moveTo(0, size);
@@ -186,6 +186,7 @@ function renderCharts(day) {
         { label: 'Solar', data: slice.map(h=>h.solar), backgroundColor: 'rgba(245,158,11,0.65)', stack: 'combined', order: 1, borderRadius: 3 },
         { label: 'Punjenje', data: slice.map(h=>-h.charge), backgroundColor: 'rgba(16,185,129,0.6)', stack: 'combined', order: 5, borderRadius: 3 },
         { label: 'Export', data: slice.map(h=>-h.export), backgroundColor: 'rgba(56,189,248,0.55)', stack: 'combined', order: 6, borderRadius: 3 },
+        { label: 'Ogr. snage (solar)', data: slice.map(h=>-h.curtail), backgroundColor: createHatchPattern('rgba(251,146,60,0.6)', 'rgba(100,100,100,0.65)'), stack: 'combined', order: 7, borderRadius: 3 },
         { label: 'Potrosnja', data: slice.map(h=>h.consumption), type: 'line',
           borderColor: '#1e293b', borderWidth: 2, borderDash: [6,3],
           pointRadius: 0, fill: false, stack: false, order: -1 }
@@ -226,6 +227,31 @@ function renderCharts(day) {
       scales: {
         x: { grid: { color: 'rgba(232,228,222,0.5)' }, ticks: { color: '#94a3b8', font: { family: 'Outfit', size: 11 }, maxRotation: 0, autoSkip: true, maxTicksLimit: xTickLimit } },
         y: { grid: { color: 'rgba(232,228,222,0.5)' }, ticks: { color: '#94a3b8', font: { family: 'Outfit', size: 11 } }, title: { display: true, text: 'Snaga [MW]', color: '#94a3b8', font: { family: 'DM Serif Display', size: 13 } } }
+      }
+    }
+  });
+
+  // Solar Chart
+  if (solarChart) solarChart.destroy();
+  solarChart = new Chart(document.getElementById('solarChart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Solarna elektrana', data: slice.map(h => h.solar - h.curtail), backgroundColor: 'rgba(245,158,11,0.65)', stack: 'solar', order: 1, borderRadius: 3 },
+        { label: 'Ogr. snage (solar)',  data: slice.map(h => h.curtail),           backgroundColor: createHatchPattern('rgba(251,146,60,0.6)', 'rgba(100,100,100,0.65)'),  stack: 'solar', order: 2, borderRadius: 3 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: '#64748b', font: { family: 'Outfit', size: 12 }, boxWidth: 14, padding: 18, usePointStyle: true, pointStyle: 'rectRounded' } },
+        tooltip: { ...tooltipStyle, callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.raw.toFixed(2)} MW` } }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(232,228,222,0.5)' }, ticks: { color: '#94a3b8', font: { family: 'Outfit', size: 11 }, maxRotation: 0, autoSkip: true, maxTicksLimit: xTickLimit } },
+        y: { min: 0, grid: { color: 'rgba(232,228,222,0.5)' }, ticks: { color: '#94a3b8', font: { family: 'Outfit', size: 11 } }, title: { display: true, text: 'Snaga [MW]', color: '#94a3b8', font: { family: 'DM Serif Display', size: 13 } } }
       }
     }
   });
@@ -276,12 +302,6 @@ function renderCharts(day) {
         pointRadius: 0,
         fill: true,
         tension: 0.25,
-        segment: {
-          borderColor: ctx => {
-            const v = ctx.p1.parsed.y;
-            return v > 80 ? '#f43f5e' : v > 60 ? '#f97316' : '#8b5cf6';
-          }
-        }
       }]
     },
     options: {

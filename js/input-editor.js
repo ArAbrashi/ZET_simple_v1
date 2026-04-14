@@ -709,27 +709,53 @@ function fillZeros() {
 
 function runSimulation() {
   const btn = document.getElementById('run-btn');
+  const logEl  = document.getElementById('sim-log');
+  const line1  = document.getElementById('sim-log-line1');
+  const line2  = document.getElementById('sim-log-line2');
+
   btn.disabled = true;
   btn.innerHTML = '&#9203; Racunam...';
-  showToast('Simulacija pokrenuta...');
-  fetch('/run-simulation', { method: 'POST' })
-    .then(r => r.json())
-    .then(data => {
-      btn.disabled = false;
-      btn.innerHTML = '&#9654; Pokreni simulaciju';
-      if (data.ok) {
-        showToast('Simulacija zavrsena! Otvorite Dashboard.');
-      } else {
-        showToast('Greska u simulaciji. Provjerite konzolu.');
-        console.error('STDERR:', data.stderr);
-        console.log('STDOUT:', data.stdout);
-      }
-    })
-    .catch(() => {
-      btn.disabled = false;
-      btn.innerHTML = '&#9654; Pokreni simulaciju';
-      showToast('Server nedostupan. Pokrenite server.py');
-    });
+
+  // Otvori log panel
+  line1.textContent = 'Pokretanje optimizacije...';
+  line2.textContent = '\u00a0';
+  logEl.style.display = 'block';
+  logEl.style.opacity = '1';
+
+  const logLines = [];
+  function pushLine(txt) {
+    logLines.push(txt);
+    line1.textContent = logLines.length >= 2 ? logLines[logLines.length - 2] : '\u00a0';
+    line2.textContent = logLines[logLines.length - 1];
+  }
+
+  function closeLog(ok) {
+    btn.disabled = false;
+    btn.innerHTML = '&#9654; Pokreni simulaciju';
+    showToast(ok ? 'Simulacija zavrsena! Otvorite Dashboard.' : 'Greska u simulaciji.');
+    setTimeout(() => {
+      logEl.style.opacity = '0';
+      setTimeout(() => { logEl.style.display = 'none'; }, 400);
+    }, 1500);
+  }
+
+  const es = new EventSource('/run-simulation-stream');
+
+  es.onmessage = e => {
+    try { pushLine(JSON.parse(e.data)); } catch { pushLine(e.data); }
+  };
+
+  es.addEventListener('done', e => {
+    es.close();
+    let ok = false;
+    try { ok = JSON.parse(e.data).ok; } catch {}
+    closeLog(ok);
+  });
+
+  es.onerror = () => {
+    es.close();
+    closeLog(false);
+  };
 }
 
 function showToast(msg) {

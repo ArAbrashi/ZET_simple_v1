@@ -77,6 +77,45 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
 
+    def do_GET(self):
+        if self.path == "/run-simulation-stream":
+            try:
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream")
+                self.send_header("Cache-Control", "no-cache")
+                self.send_header("X-Accel-Buffering", "no")
+                http.server.BaseHTTPRequestHandler.end_headers(self)
+
+                proc = subprocess.Popen(
+                    [sys.executable, os.path.join(DIR, "main.py")],
+                    cwd=DIR,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1,
+                )
+                print("[STREAM] Pokrecem main.py ...")
+                for line in iter(proc.stdout.readline, ""):
+                    line = line.rstrip()
+                    if line:
+                        self.wfile.write(
+                            f"data: {json.dumps(line)}\n\n".encode("utf-8")
+                        )
+                        self.wfile.flush()
+                proc.wait()
+                ok = proc.returncode == 0
+                self.wfile.write(
+                    f"event: done\ndata: {json.dumps({'ok': ok})}\n\n".encode("utf-8")
+                )
+                self.wfile.flush()
+                print(f"[STREAM] {'OK' if ok else 'GRESKA'} (exit code {proc.returncode})")
+            except BrokenPipeError:
+                pass
+            except Exception as e:
+                print(f"[STREAM ERROR] {e}")
+        else:
+            super().do_GET()
+
 
 if __name__ == "__main__":
     server = http.server.HTTPServer(("", PORT), Handler)
