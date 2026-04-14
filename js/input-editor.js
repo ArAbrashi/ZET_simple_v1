@@ -26,7 +26,7 @@ const PARAMS_DEF = [
 ];
 
 const CHART_CONFIGS = [
-  { id: 'chart-price',  arr: 'prices',      color: '#8b5cf6', bg: 'rgba(139,92,246,0.08)', label: 'Cijena',    unit: 'EUR/MWh', round: 1 },
+  { id: 'chart-price',  arr: 'prices',      color: '#8b5cf6', bg: 'rgba(139,92,246,0.08)', label: 'Cijena',    unit: 'EUR/MWh', round: 1, allowNegative: true },
   { id: 'chart-cons',   arr: 'consumption', color: '#0ea5e9', bg: 'rgba(14,165,233,0.08)',  label: 'Potrosnja', unit: 'MW',      round: 2 },
   { id: 'chart-solar',  arr: 'solar',       color: '#f59e0b', bg: 'rgba(245,158,11,0.08)',  label: 'Solar',     unit: '',        round: 2 },
   { id: 'chart-afrrp',  arr: 'aFRRplus',    color: '#10b981', bg: 'rgba(16,185,129,0.08)',  label: 'aFRR+',     unit: 'MW',      round: 2 },
@@ -276,7 +276,7 @@ function updateBadge(cfgId, data) {
   const origEl = document.getElementById(badge.badgeId + '-orig');
   const hasChanged = Math.abs(sum - origSum) > 0.05;
   if (origEl) {
-    origEl.textContent = origSum.toFixed(1) + ' ' + badge.unit;
+    origEl.innerHTML = `<span class="info-sep">orig</span>\u2002${origSum.toFixed(1)} ${badge.unit}`;
     origEl.classList.toggle('visible', hasChanged);
   }
 
@@ -407,7 +407,10 @@ function buildAllCharts(day) {
             }
           },
           y: {
-            beginAtZero: true,
+            beginAtZero: !cfg.allowNegative,
+            min: cfg.allowNegative
+              ? Math.floor(Math.min(...data, ...origData, 0) * 1.5 * 10) / 10
+              : undefined,
             max: Math.ceil(Math.max(...data, ...origData) * 1.5 * 10) / 10 || 1,
             grid: { color: 'rgba(232,228,222,0.5)' },
             ticks: {
@@ -446,16 +449,26 @@ function buildAllCharts(day) {
         return best;
       }
 
-      // Expand Y axis when a point reaches the current max.
-      // Re-anchors dragStartCursorVal so the delta stays consistent after
-      // the scale change (prevents a jump in point position).
-      function expandIfNeeded(chart, peakVal, offsetY) {
-        if (peakVal < chart.options.scales.y.max) return;
-        const scale        = chart.scales.y;
-        const preCursorVal = scale.getValueForPixel(offsetY);
-        chart.options.scales.y.max = Math.ceil(peakVal * 1.05 * 10) / 10;
-        chart.update('none');
-        dragStartCursorVal += scale.getValueForPixel(offsetY) - preCursorVal;
+      // Expand Y axis up/down when a point hits the current max/min.
+      // Re-anchors dragStartCursorVal after scale change to prevent position jump.
+      function expandIfNeeded(chart, peakVal, troughVal, offsetY) {
+        const scale = chart.scales.y;
+        let changed = false;
+        if (peakVal >= chart.options.scales.y.max) {
+          const pre = scale.getValueForPixel(offsetY);
+          chart.options.scales.y.max = Math.ceil(peakVal * 1.05 * 10) / 10;
+          chart.update('none');
+          dragStartCursorVal += scale.getValueForPixel(offsetY) - pre;
+          changed = true;
+        }
+        if (cfg.allowNegative && troughVal <= chart.options.scales.y.min) {
+          const pre = scale.getValueForPixel(offsetY);
+          chart.options.scales.y.min = Math.floor(troughVal * 1.05 * 10) / 10;
+          chart.update('none');
+          dragStartCursorVal += scale.getValueForPixel(offsetY) - pre;
+          changed = true;
+        }
+        return changed;
       }
 
       function applyDelta(offsetY) {
@@ -463,21 +476,22 @@ function buildAllCharts(day) {
         const scale      = chart.scales.y;
         const p          = Math.pow(10, cfg.round);
         const mode       = dragModes[cfg.id];
+        const floor      = cfg.allowNegative ? -Infinity : 0;
         const cursorVal  = scale.getValueForPixel(offsetY);
         const delta      = cursorVal - dragStartCursorVal;
 
         if (mode === 'all' && dragStartAllData) {
           const newData = dragStartAllData.map(v =>
-            Math.max(0, Math.round((v + delta) * p) / p)
+            Math.max(floor, Math.round((v + delta) * p) / p)
           );
-          // Expand based on the highest point among all 24, not just the dragged one
-          expandIfNeeded(chart, Math.max(...newData), offsetY);
+          // Expand based on highest AND lowest point among all 24
+          expandIfNeeded(chart, Math.max(...newData), Math.min(...newData), offsetY);
           chart.data.datasets[1].data = newData;
           chart.update('none');
           updateBadge(cfg.id, newData);
         } else {
-          const corrected = Math.max(0, Math.round((dragStartVal + delta) * p) / p);
-          expandIfNeeded(chart, corrected, offsetY);
+          const corrected = Math.max(floor, Math.round((dragStartVal + delta) * p) / p);
+          expandIfNeeded(chart, corrected, corrected, offsetY);
           chart.data.datasets[1].data[dragIndex] = corrected;
           chart.update('none');
           updateBadge(cfg.id, chart.data.datasets[1].data);

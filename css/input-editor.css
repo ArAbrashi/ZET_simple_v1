@@ -644,7 +644,6 @@ body {
   font-size: 0.72rem;
   font-weight: 400;
   color: var(--text-muted);
-  text-decoration: line-through;
   opacity: 0;
   transition: opacity 0.2s;
 }
