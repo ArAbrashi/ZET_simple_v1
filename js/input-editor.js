@@ -315,9 +315,6 @@ function buildAllCharts(day) {
     }
     infoBar.innerHTML = '<span class="info-placeholder">Prijeđite mišem za detalje</span>';
 
-    let dragStartValue = null;
-    let dragStartData = null;
-
     const datasets = [
       {
         label: 'Original',
@@ -347,7 +344,7 @@ function buildAllCharts(day) {
         pointBackgroundColor: cfg.color,
         pointBorderColor: '#ffffff',
         pointBorderWidth: 2,
-        pointHitRadius: 12,
+        pointHitRadius: 10,
         fill: true,
         tension: 0.15,
         order: 1,
@@ -360,79 +357,17 @@ function buildAllCharts(day) {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        animation: { duration: 200 },
+        animation: false,
         interaction: { mode: 'index', intersect: false },
         plugins: {
           legend: { display: false },
           dragData: {
             round: cfg.round,
-            showTooltip: true,
             showTooltip: false,
             dragX: false,
-            onDragStart: (_e, datasetIndex, _index, value) => {
-              if (datasetIndex !== 1) return false;
-              dragStartValue = value;
-              dragStartData = [...charts[cfg.id].data.datasets[1].data];
-            },
-            onDrag: (_e, datasetIndex, index, value) => {
-              if (datasetIndex !== 1) return false;
-              const chart = charts[cfg.id];
-              const mode = dragModes[cfg.id];
-              if (mode === 'all' && dragStartData) {
-                const delta = value - dragStartValue;
-                const newData = dragStartData.map(v => {
-                  const nv = Math.round((v + delta) * Math.pow(10, cfg.round)) / Math.pow(10, cfg.round);
-                  return Math.max(0, nv);
-                });
-                const newMax = Math.max(...newData);
-                if (newMax >= chart.options.scales.y.max) {
-                  chart.options.scales.y.max = Math.ceil(newMax * 1.05 * 10) / 10;
-                }
-                chart.data.datasets[1].data = newData;
-                chart.update('none');
-                updateBadge(cfg.id, newData);
-              } else {
-                if (value >= chart.options.scales.y.max) {
-                  chart.options.scales.y.max = Math.ceil(value * 1.05 * 10) / 10;
-                }
-                const liveData = [...chart.data.datasets[1].data];
-                liveData[index] = value;
-                updateBadge(cfg.id, liveData);
-              }
-            },
-            onDragEnd: (_e, datasetIndex, index, value) => {
-              if (datasetIndex !== 1) return;
-              const chart = charts[cfg.id];
-              const mode = dragModes[cfg.id];
-              const offset = currentDay * 24;
-              if (mode === 'all' && dragStartData) {
-                const delta = value - dragStartValue;
-                const finalData = dragStartData.map(v => {
-                  const nv = Math.round((v + delta) * Math.pow(10, cfg.round)) / Math.pow(10, cfg.round);
-                  return Math.max(0, nv);
-                });
-                const newMax = Math.max(...finalData);
-                if (newMax >= chart.options.scales.y.max) {
-                  chart.options.scales.y.max = Math.ceil(newMax * 1.05 * 10) / 10;
-                }
-                chart.data.datasets[1].data = finalData;
-                chart.update('none');
-                for (let h = 0; h < 24; h++) {
-                  state[cfg.arr][offset + h] = finalData[h];
-                  const inp = document.querySelector(`input[data-arr="${cfg.arr}"][data-idx="${offset + h}"]`);
-                  if (inp) inp.value = finalData[h];
-                }
-                updateBadge(cfg.id, finalData);
-              } else {
-                const globalIdx = offset + index;
-                state[cfg.arr][globalIdx] = value;
-                const inp = document.querySelector(`input[data-arr="${cfg.arr}"][data-idx="${globalIdx}"]`);
-                if (inp) inp.value = value;
-                updateBadge(cfg.id, chart.data.datasets[1].data);
-              }
-              dragStartValue = null;
-              dragStartData = null;
-            }
+            onDragStart: () => false,
+            onDrag: () => false,
+            onDragEnd: () => {},
           },
           tooltip: {
             enabled: false,
@@ -483,6 +418,126 @@ function buildAllCharts(day) {
         }
       }
     });
+
+    // ── Own drag implementation (Pointer Events API) ────────────────────────
+    // setPointerCapture routes all pointer events to the canvas element so
+    // e.offsetY is always canvas-relative, even when mouse leaves the canvas.
+    // No document-level listeners needed — avoids all capture-phase conflicts.
+    ;(function attachDrag() {
+      if (canvas._removeDragListeners) canvas._removeDragListeners();
+
+      let isDragging       = false;
+      let dragIndex        = null;
+      let dragStartPxY     = null;
+      let dragStartVal     = null;
+      let dragStartAllData = null;
+
+      function findPointIndex(offsetX, offsetY) {
+        const chart = charts[cfg.id];
+        const { top, bottom } = chart.chartArea;
+        if (offsetY < top || offsetY > bottom) return -1;
+        const meta = chart.getDatasetMeta(1);
+        if (!meta?.data?.length) return -1;
+        let best = -1, bestDx = Infinity;
+        meta.data.forEach((pt, i) => {
+          const dx = Math.abs(offsetX - pt.x);
+          if (dx < bestDx) { bestDx = dx; best = i; }
+        });
+        return best;
+      }
+
+      function applyDelta(offsetY) {
+        const chart  = charts[cfg.id];
+        const scale  = chart.scales.y;
+        const delta  = scale.getValueForPixel(offsetY) - scale.getValueForPixel(dragStartPxY);
+        const p      = Math.pow(10, cfg.round);
+        const curMax = chart.options.scales.y.max;
+        const mode   = dragModes[cfg.id];
+
+        if (mode === 'all' && dragStartAllData) {
+          const newData = dragStartAllData.map(v =>
+            Math.min(curMax, Math.max(0, Math.round((v + delta) * p) / p))
+          );
+          chart.data.datasets[1].data = newData;
+          chart.update('none');
+          updateBadge(cfg.id, newData);
+        } else {
+          const corrected = Math.min(curMax, Math.max(0, Math.round((dragStartVal + delta) * p) / p));
+          chart.data.datasets[1].data[dragIndex] = corrected;
+          chart.update('none');
+          updateBadge(cfg.id, chart.data.datasets[1].data);
+        }
+      }
+
+      function commitDrag() {
+        const chart       = charts[cfg.id];
+        const offset      = currentDay * 24;
+        const currentData = chart.data.datasets[1].data;
+        const mode        = dragModes[cfg.id];
+
+        const maxVal = Math.max(...currentData);
+        if (maxVal >= chart.options.scales.y.max) {
+          chart.options.scales.y.max = Math.ceil(maxVal * 1.05 * 10) / 10;
+          chart.update('none');
+        }
+
+        if (mode === 'all') {
+          for (let h = 0; h < 24; h++) {
+            state[cfg.arr][offset + h] = currentData[h];
+            const inp = document.querySelector(`input[data-arr="${cfg.arr}"][data-idx="${offset + h}"]`);
+            if (inp) inp.value = currentData[h];
+          }
+          updateBadge(cfg.id, currentData);
+        } else {
+          const finalVal  = currentData[dragIndex];
+          const globalIdx = offset + dragIndex;
+          state[cfg.arr][globalIdx] = finalVal;
+          const inp = document.querySelector(`input[data-arr="${cfg.arr}"][data-idx="${globalIdx}"]`);
+          if (inp) inp.value = finalVal;
+          updateBadge(cfg.id, currentData);
+        }
+      }
+
+      function onPointerDown(e) {
+        if (e.button !== 0) return;
+        const idx = findPointIndex(e.offsetX, e.offsetY);
+        if (idx === -1) return;
+        canvas.setPointerCapture(e.pointerId);
+        isDragging       = true;
+        dragIndex        = idx;
+        dragStartAllData = [...charts[cfg.id].data.datasets[1].data];
+        dragStartVal     = dragStartAllData[idx];
+        dragStartPxY     = e.offsetY;
+        e.preventDefault();
+      }
+
+      function onPointerMove(e) {
+        if (!isDragging) return;
+        applyDelta(e.offsetY);
+      }
+
+      function onPointerUp(e) {
+        if (!isDragging) return;
+        isDragging = false;
+        canvas.releasePointerCapture(e.pointerId);
+        commitDrag();
+        dragIndex = dragStartPxY = dragStartVal = dragStartAllData = null;
+      }
+
+      canvas.addEventListener('pointerdown', onPointerDown, { capture: true });
+      canvas.addEventListener('pointermove', onPointerMove);
+      canvas.addEventListener('pointerup',   onPointerUp);
+      canvas.addEventListener('pointercancel', onPointerUp);
+
+      canvas._removeDragListeners = () => {
+        canvas.removeEventListener('pointerdown',   onPointerDown, { capture: true });
+        canvas.removeEventListener('pointermove',   onPointerMove);
+        canvas.removeEventListener('pointerup',     onPointerUp);
+        canvas.removeEventListener('pointercancel', onPointerUp);
+        delete canvas._removeDragListeners;
+      };
+    })();
+    // ────────────────────────────────────────────────────────────────────────
   });
 }
 
