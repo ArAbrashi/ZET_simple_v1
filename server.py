@@ -18,20 +18,26 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=DIR, **kwargs)
 
+    def end_headers(self):
+        self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+        self.send_header('Pragma', 'no-cache')
+        self.send_header('Expires', '0')
+        super().end_headers()
+
     def do_POST(self):
         if self.path == "/save-input":
             length = int(self.headers.get("Content-Length", 0))
             body = self.rfile.read(length)
             try:
                 data = json.loads(body)
-                path = os.path.join(DIR, "Input.json")
+                path = os.path.join(DIR, "input_2.json")
                 with open(path, "w", encoding="utf-8") as f:
                     json.dump(data, f, indent=2, ensure_ascii=False)
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.end_headers()
                 self.wfile.write(json.dumps({"ok": True}).encode())
-                print(f"[SAVED] Input.json ({len(body)} bytes)")
+                print(f"[SAVED] input_2.json ({len(body)} bytes)")
             except Exception as e:
                 self.send_response(500)
                 self.send_header("Content-Type", "application/json")

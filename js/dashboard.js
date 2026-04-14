@@ -7,7 +7,7 @@ Chart.defaults.color = '#94a3b8';
 Chart.defaults.borderColor = 'rgba(232,228,222,0.6)';
 Chart.defaults.font.family = 'Outfit';
 
-fetch('results.json')
+fetch('results.json?t=' + Date.now())
   .then(r => r.json())
   .then(data => { DATA = data; init(); })
   .catch(() => {
@@ -89,9 +89,9 @@ function renderKPI() {
   const cards = [
     { label: 'Optimalni trosak', value: fmt(s.cost_optimized,0), unit: `EUR / ${DATA.days.length} dana`, cls: 'cyan', icon: '&#9670;' },
     { label: 'Usteda', value: fmt(s.savings,0), unit: 'EUR vs. bez baterije', cls: 'emerald', icon: '&#9650;' },
-    { label: 'Mreza', value: fmt(s.E_grid_total,1), unit: 'MWh ukupno', cls: 'violet', icon: '&#9889;' },
+    { label: 'Mreza preuzimanje (predaja)', value: `${fmt(s.E_grid_total,1)} (${fmt(s.E_export_total,1)})`, unit: 'MWh preuzimanje (predaja)', cls: 'violet', icon: '&#9889;' },
     { label: 'Solar', value: fmt(s.E_solar_total,1), unit: 'MWh proizvedeno', cls: 'amber', icon: '&#9728;' },
-    { label: 'Manjak EE', value: fmt(s.E_deficit_total,2), unit: 'MWh nenamireno', cls: s.E_deficit_total > 0.01 ? 'rose' : 'emerald', icon: '&#9888;' },
+    { label: 'Manjak EE', value: s.E_deficit_total > 0.01 ? `<span style="color:var(--rose)">${fmt(s.E_deficit_total,2)}</span>` : fmt(s.E_deficit_total,2), unit: 'MWh nenamireno', cls: s.E_deficit_total > 0.01 ? 'rose' : 'emerald', icon: '&#9888;' },
   ];
   const grid = document.getElementById('kpi-grid');
   grid.innerHTML = cards.map(c => `
@@ -108,11 +108,12 @@ function renderDailyCards() {
   const grid = document.getElementById('daily-grid');
   grid.innerHTML = DATA.days.map((_name, i) => {
     const dayData = DATA.hourly.filter(h => h.day === i);
-    const costOpt = dayData.reduce((s,h) => s + h.price * h.grid - DATA.parameters.price_export * h.export, 0);
-    const costNoBat = dayData.reduce((s,h) => s + h.price * Math.max(h.consumption - h.solar, 0), 0);
+    const dt = 24 / dayData.length;  // h per slot (1 for hourly, 0.25 for 15-min)
+    const costOpt   = dayData.reduce((s,h) => s + (h.price * h.grid - DATA.parameters.price_export * h.export) * dt, 0);
+    const costNoBat = dayData.reduce((s,h) => s + h.price * Math.max(h.consumption - h.solar, 0) * dt, 0);
     const cost = costOpt;
     const savings = costNoBat - costOpt;
-    const gridMwh = dayData.reduce((s,h) => s + h.grid, 0);
+    const gridMwh = dayData.reduce((s,h) => s + h.grid * dt, 0);
     return `
       <div class="daily-card ${i===0?'active':''}" onclick="selectDay(${i})">
         <div class="day-name">${dayNameWeek(i)}</div>
@@ -160,9 +161,15 @@ const tooltipStyle = {
   boxPadding: 4,
 };
 
+function slotLabel(h) {
+  const hh = String(h.hour).padStart(2,'0');
+  const mm = String(h.minute ?? 0).padStart(2,'0');
+  return `${hh}:${mm}`;
+}
+
 function renderCharts(day) {
   const slice = getSlice(day);
-  const labels = slice.map(h => day === 'all' ? `${dayShortWeek(h.day)} ${h.hour}h` : `${h.hour}:00`);
+  const labels = slice.map(h => day === 'all' ? `${dayShortWeek(h.day)} ${slotLabel(h)}` : slotLabel(h));
   const pctFactor = 100 / DATA.parameters.E_bat;
   const xTickLimit = day === 'all' ? DATA.days.length * 2 : 24;
 
@@ -271,7 +278,7 @@ function renderTable(day) {
   const slice = getSlice(day);
   const tbody = document.getElementById('table-body');
   tbody.innerHTML = slice.map(h => `<tr>
-    <td>${day==='all' ? dayShortWeek(h.day)+' '+h.hour+'h' : h.hour+':00'}</td>
+    <td>${day==='all' ? dayShortWeek(h.day)+' '+slotLabel(h) : slotLabel(h)}</td>
     <td>${h.price.toFixed(1)}</td>
     <td>${h.consumption.toFixed(2)}</td>
     <td class="val-solar">${h.solar.toFixed(2)}</td>

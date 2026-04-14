@@ -2,15 +2,18 @@ import json
 import highspy
 
 # Učitaj podatke
-with open("Input.json", "r") as f:
+with open("input_2.json", "r") as f:
     data = json.load(f)
 
 prices = data["prices"]             # EUR/MWh
 consumption = data["consumption"]   # MW
 aFRRplus = data["aFRRplus"]         # MW - ponuđena snaga pozitivne regulacije
 aFRRminus = data["aFRRminus"]      # MW - ponuđena snaga negativne regulacije
-solar_norm = data["solar"]          # kW - normalizirani profil solarne elektrane (1 kW inst.)
-T = len(prices)                     # N sati (broj_dana × 24)
+solar_norm = data["solar"]          # normalizirani profil solarne elektrane (0-1)
+T = len(prices)                     # broj vremenskih koraka (broj_dana × 96)
+
+DT = 0.25           # vremenski korak u satima (15 min = 0.25 h)
+SLOTS_PER_DAY = 96  # 15-minutnih slotova po danu
 
 # Parametri iz JSON-a
 params = data["parameters"]
@@ -51,14 +54,14 @@ inf = highspy.kHighsInf
 #   y_dis[t]       - binarna: 1=pražnjenje aktivno           t = 0..T-1
 #   p_export[t]    - prodaja solarne EE u mrežu [0, solar]   t = 0..T-1
 
-num_vars = 9 * T
+num_vars = 10 * T
 col_lower = []
 col_upper = []
 col_cost = []
 
 # Indeksi varijabli - grupirani po satu:
-#   t=0: [grid_0, charge_0, discharge_0, soc_0], t=1: [grid_1, charge_1, ...], ...
-N_VAR_PER_T = 9
+#   t=0: [grid_0, charge_0, discharge_0, soc_0, deficit_0, curtail_0, ychg_0, ydis_0, export_0, yimp_0], ...
+N_VAR_PER_T = 10
 def idx_grid(t):      return N_VAR_PER_T * t
 def idx_charge(t):    return N_VAR_PER_T * t + 1
 def idx_discharge(t): return N_VAR_PER_T * t + 2
@@ -68,12 +71,13 @@ def idx_curtail(t):   return N_VAR_PER_T * t + 5
 def idx_ychg(t):      return N_VAR_PER_T * t + 6
 def idx_ydis(t):      return N_VAR_PER_T * t + 7
 def idx_export(t):    return N_VAR_PER_T * t + 8
+def idx_yimp(t):      return N_VAR_PER_T * t + 9
 
 for t in range(T):
     # p_grid[t]
     col_lower.append(0.0)
     col_upper.append(P_grid_max)
-    col_cost.append(prices[t])  # minimiziramo trošak: cijena * snaga_s_mreže * 1h
+    col_cost.append(prices[t] * DT)  # trošak: cijena [EUR/MWh] * snaga [MW] * DT [h] = EUR
 
     # p_charge[t]
     col_lower.append(0.0)
@@ -93,7 +97,7 @@ for t in range(T):
     # p_deficit[t] - manjak EE, s visokim kaznenim troškom
     col_lower.append(0.0)
     col_upper.append(inf)
-    col_cost.append(PENALTY_DEFICIT)
+    col_cost.append(PENALTY_DEFICIT * DT)  # EUR/MWh * h_po_slotu = EUR po MW
 
     # p_curtail[t] - curtailment solarne elektrane [0, solar_prod[t]]
     col_lower.append(0.0)
@@ -114,14 +118,21 @@ for t in range(T):
     # negativan trošak = prihod (smanjuje ukupni trošak)
     col_lower.append(0.0)
     col_upper.append(solar_prod[t])
-    col_cost.append(-price_export)
+    col_cost.append(-price_export * DT)  # prihod od exporta: EUR/MWh * MW * DT h
+
+    # y_imp[t] - binarna: 1 ako se preuzima EE iz mreže (p_grid>0), 0 ako se predaje (export>0)
+    # Sprječava istovremeni uvoz i izvoz EE
+    col_lower.append(0.0)
+    col_upper.append(1.0)
+    col_cost.append(0.0)
 
 h.addVars(num_vars, col_lower, col_upper)
 
-# Postavi y_chg i y_dis kao binarne (integer) varijable
+# Postavi y_chg, y_dis i y_imp kao binarne (integer) varijable
 for t in range(T):
     h.changeColIntegrality(idx_ychg(t), highspy.HighsVarType.kInteger)
     h.changeColIntegrality(idx_ydis(t), highspy.HighsVarType.kInteger)
+    h.changeColIntegrality(idx_yimp(t), highspy.HighsVarType.kInteger)
 
 # Postavi funkciju cilja (minimize)
 for i in range(num_vars):
@@ -143,7 +154,7 @@ for t in range(T):
 #    soc[t] = soc[t-1] + eta_chg*p_charge[t]*pct - p_discharge[t]*pct
 #    (punjenje: samo eta_chg energije dolazi u bateriju, pražnjenje: uzima punu energiju iz baterije)
 #    => soc[t] - eta_chg*pct*p_charge[t] + pct*p_discharge[t] = soc[t-1]
-pct_factor = 100.0 / E_bat  # pretvorba MW*1h -> % kapaciteta
+pct_factor = DT * 100.0 / E_bat  # pretvorba MW*DT_h -> % kapaciteta (za 15 min = 0.25*100/E_bat)
 for t in range(T):
     soc_prev = SOC_init if t == 0 else None
     if t == 0:
@@ -214,16 +225,12 @@ for t in range(T):
     values = [1.0]
     h.addRow(-inf, P_bat - aFRRminus[t], len(indices), indices, values)
 
-    # aFRR+ energijska rezerva: SOC mora biti dovoljno visok da isporuči aFRRplus 1 sat
-    #   SOC[t] >= SOC_min + aFRRplus[t] * pct_factor
-    #   => SOC[t] >= 15 + aFRRplus[t] * (100/E_bat)
+    # aFRR+ energijska rezerva: SOC mora biti dovoljno visok da isporuči aFRRplus jedan slot (DT h)
     indices = [idx_soc(t)]
     values = [1.0]
     h.addRow(soc_min + aFRRplus[t] * pct_factor, inf, len(indices), indices, values)
 
-    # aFRR- energijska rezerva: SOC mora biti dovoljno nizak da primi aFRRminus 1 sat
-    #   SOC[t] <= SOC_max - aFRRminus[t] * pct_factor
-    #   => SOC[t] <= 90 - aFRRminus[t] * (100/E_bat)
+    # aFRR- energijska rezerva: SOC mora biti dovoljno nizak da primi aFRRminus jedan slot (DT h)
     indices = [idx_soc(t)]
     values = [1.0]
     h.addRow(-inf, soc_max - aFRRminus[t] * pct_factor, len(indices), indices, values)
@@ -235,7 +242,23 @@ for t in range(T):
     values = [1.0, 1.0]
     h.addRow(-inf, solar_prod[t], len(indices), indices, values)
 
-# 5b) Zabrana istovremenog punjenja i pražnjenja + minimalno trajanje režima:
+# 5b_extra) Zabrana istovremenog uvoza i izvoza EE:
+#   y_imp[t] = 1 → uvoz iz mreže dozvoljen, izvoz zabranjen
+#   y_imp[t] = 0 → izvoz dozvoljen, uvoz iz mreže zabranjen
+#   p_grid[t]  <= P_grid_max * y_imp[t]
+#   p_export[t] <= solar_prod[t] * (1 - y_imp[t])
+for t in range(T):
+    # p_grid <= P_grid_max * y_imp
+    indices = [idx_grid(t), idx_yimp(t)]
+    values = [1.0, -P_grid_max]
+    h.addRow(-inf, 0.0, len(indices), indices, values)
+
+    # p_export <= solar_prod * (1 - y_imp)  →  p_export + solar_prod*y_imp <= solar_prod
+    indices = [idx_export(t), idx_yimp(t)]
+    values = [1.0, solar_prod[t]]
+    h.addRow(-inf, solar_prod[t], len(indices), indices, values)
+
+# 5c) Zabrana istovremenog punjenja i pražnjenja + minimalno trajanje režima:
 #    y_chg[t] + y_dis[t] <= 1              (ne može oboje u istom satu)
 #    p_charge[t]    <= P_bat * y_chg[t]    (punjenje samo ako y_chg=1)
 #    p_discharge[t] <= P_bat * y_dis[t]    (pražnjenje samo ako y_dis=1)
@@ -255,11 +278,11 @@ for t in range(T):
     values = [1.0, -P_bat]
     h.addRow(-inf, 0.0, len(indices), indices, values)
 
-# 6) Minimalno trajanje režima (n_bat_min sati):
-#    Ako se puni u satu t, ne smije se prazniti u sljedećih n_bat_min-1 sati, i obrnuto.
-#    Mirovanje (y_chg=0 i y_dis=0) ne smeta.
+# 6) Minimalno trajanje režima (n_bat_min sati = n_bat_min * 4 slotova pri 15 min):
+#    Ako se puni u slotu t, ne smije se prazniti u sljedećih (n_bat_min*4 - 1) slotova, i obrnuto.
+n_bat_min_slots = round(n_bat_min / DT)  # sati -> slotovi
 for t in range(T):
-    for k in range(t + 1, min(t + n_bat_min, T)):
+    for k in range(t + 1, min(t + n_bat_min_slots, T)):
         # Ako puni u t, ne prazni u k: y_chg[t] + y_dis[k] <= 1
         indices = [idx_ychg(t), idx_ydis(k)]
         values = [1.0, 1.0]
@@ -278,24 +301,25 @@ if status == 2:  # feasible
     obj = h.getInfoValue("objective_function_value")[1]
     sol = h.getSolution().col_value
 
-    # Ukupne energije
-    E_grid_total = sum(max(0.0, sol[idx_grid(t)]) for t in range(T))
-    E_deficit_total = sum(max(0.0, sol[idx_deficit(t)]) for t in range(T))
-    E_solar_total = sum(solar_prod)
-    E_curtail_total = sum(max(0.0, sol[idx_curtail(t)]) for t in range(T))
-    E_export_total = sum(max(0.0, sol[idx_export(t)]) for t in range(T))
-    R_export_total = E_export_total * price_export
+    # Ukupne energije (MW * DT_h = MWh po slotu, sumiramo sve slotove)
+    E_grid_total    = sum(max(0.0, sol[idx_grid(t)])     for t in range(T)) * DT
+    E_deficit_total = sum(max(0.0, sol[idx_deficit(t)])  for t in range(T)) * DT
+    E_solar_total   = sum(solar_prod) * DT
+    E_curtail_total = sum(max(0.0, sol[idx_curtail(t)])  for t in range(T)) * DT
+    E_export_total  = sum(max(0.0, sol[idx_export(t)])   for t in range(T)) * DT
+    R_export_total  = E_export_total * price_export
 
     print(f"Ukupno preuzeto iz mreže: {E_grid_total:,.2f} MWh")
-    print(f"Ukupna potrošnja:         {sum(consumption):,.2f} MWh")
+    print(f"Ukupna potrošnja:         {sum(consumption)*DT:,.2f} MWh")
     print(f"Solarna proizvodnja:      {E_solar_total:,.2f} MWh")
     print(f"Prodano u mrežu:          {E_export_total:,.2f} MWh  ({R_export_total:,.2f} EUR)")
     print(f"Curtailment solara:       {E_curtail_total:,.2f} MWh")
     print(f"Ukupni manjak EE:         {E_deficit_total:,.2f} MWh")
     # Trošak bez penala za manjak
     cost_no_penalty = obj - E_deficit_total * PENALTY_DEFICIT
-    cost_no_bat = sum(p * max(c - s, 0) for p, c, s in zip(prices, consumption, solar_prod))
-    n_days = T // 24
+    cost_no_bat = sum((p * max(c - s, 0) - price_export * max(s - c, 0)) * DT
+                      for p, c, s in zip(prices, consumption, solar_prod))
+    n_days = T // SLOTS_PER_DAY
     print(f"Optimalni trošak ({n_days} dana):  {cost_no_penalty:,.2f} EUR (bez penala za manjak)")
     print(f"Trošak bez baterije:         {cost_no_bat:,.2f} EUR (bez penala za manjak)")
     print(f"Ušteda:                      {cost_no_bat - cost_no_penalty:,.2f} EUR")
@@ -305,21 +329,24 @@ if status == 2:  # feasible
 
     for day in range(len(data["days"])):
         day_name = data["days"][day]
-        start = day * 24
-        end = start + 24
-        day_cost = sum(prices[t] * sol[idx_grid(t)] for t in range(start, end))
-        day_grid = sum(sol[idx_grid(t)] for t in range(start, end))
-        print(f"{day_name:12s} | Mreža: {day_grid:6.1f} MWh | Trošak: {day_cost:8.2f} EUR | "
+        start = day * SLOTS_PER_DAY
+        end   = start + SLOTS_PER_DAY
+        day_cost = sum(prices[t] * sol[idx_grid(t)] * DT for t in range(start, end))
+        day_grid = sum(sol[idx_grid(t)] * DT for t in range(start, end))
+        print(f"{day_name:12s} | Mreža: {day_grid:6.2f} MWh | Trošak: {day_cost:8.2f} EUR | "
               f"SOC kraj: {sol[idx_soc(end - 1)]:.1f}%")
 
-    for day in range(len(data["days"])):
+    #for day in range(len(data["days"])):
+    for day in range(1):
         day_name = data["days"][day]
-        start = day * 24
-        end = start + 24
-        print(f"\nDetaljni sat-po-sat ({day_name}):")
-        print(f"{'Sat':>4} | {'Cijena':>8} | {'Potraž.':>7} | {'Solar':>5} | {'Mreža':>6} | {'Punj.':>6} | {'Praž.':>6} | {'Export':>6} | {'Curt.':>5} | {'Manj.':>6} | {'aFRR+':>5} | {'aFRR-':>5} | {'SOC %':>6}")
-        print("-" * 120)
+        start = day * SLOTS_PER_DAY
+        end   = start + SLOTS_PER_DAY
+        print(f"\nDetaljni slot-po-slot ({day_name}):")
+        print(f"{'Slot':>5} | {'Cijena':>8} | {'Potraž.':>7} | {'Solar':>5} | {'Mreža':>6} | {'Punj.':>6} | {'Praž.':>6} | {'Export':>6} | {'Curt.':>5} | {'Manj.':>6} | {'aFRR+':>5} | {'aFRR-':>5} | {'SOC %':>6}")
+        print("-" * 122)
         for t in range(start, end):
+            s = t - start
+            hh, mm = s // 4, (s % 4) * 15
             v_grid = max(0.0, sol[idx_grid(t)])
             v_chg  = max(0.0, sol[idx_charge(t)])
             v_dis  = max(0.0, sol[idx_discharge(t)])
@@ -327,8 +354,8 @@ if status == 2:  # feasible
             v_cur  = max(0.0, sol[idx_curtail(t)])
             v_exp  = max(0.0, sol[idx_export(t)])
             v_soc  = sol[idx_soc(t)]
-            print(f"{t - start:4d} | {prices[t]:7.1f}  | {consumption[t]:6.1f}  | {solar_prod[t]:4.2f}  | {v_grid:5.2f}  | "
-                  f"{v_chg:5.2f}  | {v_dis:5.2f}  | {v_exp:5.2f}  | {v_cur:4.2f}  | {v_def:5.2f}  | {aFRRplus[t]:4.1f}  | {aFRRminus[t]:4.1f}  | {v_soc:5.1f}%")
+            print(f"{hh:02d}:{mm:02d} | {prices[t]:7.1f}  | {consumption[t]:6.2f}  | {solar_prod[t]:4.2f}  | {v_grid:5.2f}  | "
+                  f"{v_chg:5.2f}  | {v_dis:5.2f}  | {v_exp:5.2f}  | {v_cur:4.2f}  | {v_def:5.2f}  | {aFRRplus[t]:4.2f}  | {aFRRminus[t]:4.2f}  | {v_soc:5.1f}%")
     '''
     
     # Dijagram za 3 dana (72 sata)
@@ -426,7 +453,7 @@ if status == 2:  # feasible
             "cost_no_battery": round(cost_no_bat, 2),
             "savings": round(cost_no_bat - cost_no_penalty, 2),
             "E_grid_total": round(E_grid_total, 2),
-            "E_consumption_total": round(sum(consumption), 2),
+            "E_consumption_total": round(sum(consumption) * DT, 2),
             "E_solar_total": round(E_solar_total, 2),
             "E_export_total": round(E_export_total, 2),
             "R_export_total": round(R_export_total, 2),
@@ -438,10 +465,13 @@ if status == 2:  # feasible
         "hourly": []
     }
     for t in range(T):
+        slot_in_day = t % SLOTS_PER_DAY
         results["hourly"].append({
             "t": t,
-            "day": t // 24,
-            "hour": t % 24,
+            "day":    t // SLOTS_PER_DAY,
+            "slot":   slot_in_day,
+            "hour":   slot_in_day // 4,
+            "minute": (slot_in_day % 4) * 15,
             "price": prices[t],
             "consumption": consumption[t],
             "solar": round(solar_prod[t], 4),

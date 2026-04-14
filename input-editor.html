@@ -106,47 +106,43 @@
         </div>
         <canvas id="chart-price"></canvas>
       </div>
-      <div class="chart-row">
-        <div class="chart-box">
-          <div class="chart-box-title">
-            <span style="color:var(--cyan)">&#9679;</span> Potrosnja [MW]
-            <span class="energy-badge-wrap">
-              <span class="energy-badge-orig" id="badge-cons-orig">0.0 MWh</span>
-              <span class="energy-badge" id="badge-cons" style="color:var(--cyan);border-color:var(--cyan)">0.0 MWh</span>
-              <span class="energy-pct" id="badge-cons-pct"></span>
-            </span>
-            <span id="drag-toggle-chart-cons" class="drag-mode-toggle"></span>
-          </div>
-          <canvas id="chart-cons"></canvas>
+      <div class="chart-box full-width" style="margin-bottom:18px">
+        <div class="chart-box-title">
+          <span style="color:var(--cyan)">&#9679;</span> Potrosnja [MW]
+          <span class="energy-badge-wrap">
+            <span class="energy-badge-orig" id="badge-cons-orig">0.0 MWh</span>
+            <span class="energy-badge" id="badge-cons" style="color:var(--cyan);border-color:var(--cyan)">0.0 MWh</span>
+            <span class="energy-pct" id="badge-cons-pct"></span>
+          </span>
+          <span id="drag-toggle-chart-cons" class="drag-mode-toggle"></span>
         </div>
-        <div class="chart-box">
-          <div class="chart-box-title">
-            <span style="color:var(--amber)">&#9679;</span> Solar [norm 0-1]
-            <span class="energy-badge-wrap">
-              <span class="energy-badge-orig" id="badge-solar-orig">0.0 MWh</span>
-              <span class="energy-badge" id="badge-solar" style="color:var(--amber);border-color:var(--amber)">0.0 MWh</span>
-              <span class="energy-pct" id="badge-solar-pct"></span>
-            </span>
-            <span id="drag-toggle-chart-solar" class="drag-mode-toggle"></span>
-          </div>
-          <canvas id="chart-solar"></canvas>
-        </div>
+        <canvas id="chart-cons"></canvas>
       </div>
-      <div class="chart-row">
-        <div class="chart-box">
-          <div class="chart-box-title">
-            <span style="color:var(--emerald)">&#9679;</span> aFRR+ [MW]
-            <span id="drag-toggle-chart-afrrp" class="drag-mode-toggle"></span>
-          </div>
-          <canvas id="chart-afrrp"></canvas>
+      <div class="chart-box full-width" style="margin-bottom:18px">
+        <div class="chart-box-title">
+          <span style="color:var(--amber)">&#9679;</span> Solar [norm 0-1]
+          <span class="energy-badge-wrap">
+            <span class="energy-badge-orig" id="badge-solar-orig">0.0 MWh</span>
+            <span class="energy-badge" id="badge-solar" style="color:var(--amber);border-color:var(--amber)">0.0 MWh</span>
+            <span class="energy-pct" id="badge-solar-pct"></span>
+          </span>
+          <span id="drag-toggle-chart-solar" class="drag-mode-toggle"></span>
         </div>
-        <div class="chart-box">
-          <div class="chart-box-title">
-            <span style="color:var(--rose)">&#9679;</span> aFRR- [MW]
-            <span id="drag-toggle-chart-afrrm" class="drag-mode-toggle"></span>
-          </div>
-          <canvas id="chart-afrrm"></canvas>
+        <canvas id="chart-solar"></canvas>
+      </div>
+      <div class="chart-box full-width" style="margin-bottom:18px">
+        <div class="chart-box-title">
+          <span style="color:var(--emerald)">&#9679;</span> aFRR+ [MW]
+          <span id="drag-toggle-chart-afrrp" class="drag-mode-toggle"></span>
         </div>
+        <canvas id="chart-afrrp"></canvas>
+      </div>
+      <div class="chart-box full-width" style="margin-bottom:18px">
+        <div class="chart-box-title">
+          <span style="color:var(--rose)">&#9679;</span> aFRR- [MW]
+          <span id="drag-toggle-chart-afrrm" class="drag-mode-toggle"></span>
+        </div>
+        <canvas id="chart-afrrm"></canvas>
       </div>
       <div class="drag-hint">Sve promjene na dijagramima automatski se sinkroniziraju s tablicom</div>
     </div>
@@ -159,6 +155,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="js/input-editor.js"></script>
+<script src="js/input-editor.js?v=2"></script>
 </body>
 </html>

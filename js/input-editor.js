@@ -9,7 +9,11 @@ function edDayShort(name) {
   const hr = DAY_HR_ED[base] || base.substring(0, 3);
   return week ? `${hr} ${week[1]}` : hr;
 }
-const HOURS_LABELS = Array.from({length:24}, (_,i) => String(i).padStart(2,'0')+':00');
+const SLOTS_PER_DAY = 96;
+const HOURS_LABELS = Array.from({length:SLOTS_PER_DAY}, (_,i) => {
+  const h = Math.floor(i / 4), m = (i % 4) * 15;
+  return String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
+});
 const PARAMS_DEF = [
   { key: 'P_bat',             label: 'P bat',             hint: 'Max snaga baterije [MW]',       step: 0.1 },
   { key: 'E_bat',             label: 'E bat',             hint: 'Kapacitet baterije [MWh]',      step: 0.5 },
@@ -33,20 +37,21 @@ const CHART_CONFIGS = [
   { id: 'chart-afrrm',  arr: 'aFRRminus',   color: '#f43f5e', bg: 'rgba(244,63,94,0.08)',   label: 'aFRR-',     unit: 'MW',      round: 2 },
 ];
 
+const TOTAL_SLOTS = 14 * SLOTS_PER_DAY;
 let state = {
   parameters: {},
-  prices: new Array(168).fill(0),
-  consumption: new Array(168).fill(0),
-  solar: new Array(168).fill(0),
-  aFRRplus: new Array(168).fill(0),
-  aFRRminus: new Array(168).fill(0),
+  prices: new Array(TOTAL_SLOTS).fill(0),
+  consumption: new Array(TOTAL_SLOTS).fill(0),
+  solar: new Array(TOTAL_SLOTS).fill(0),
+  aFRRplus: new Array(TOTAL_SLOTS).fill(0),
+  aFRRminus: new Array(TOTAL_SLOTS).fill(0),
 };
 let originalState = {
-  prices: new Array(168).fill(0),
-  consumption: new Array(168).fill(0),
-  solar: new Array(168).fill(0),
-  aFRRplus: new Array(168).fill(0),
-  aFRRminus: new Array(168).fill(0),
+  prices: new Array(TOTAL_SLOTS).fill(0),
+  consumption: new Array(TOTAL_SLOTS).fill(0),
+  solar: new Array(TOTAL_SLOTS).fill(0),
+  aFRRplus: new Array(TOTAL_SLOTS).fill(0),
+  aFRRminus: new Array(TOTAL_SLOTS).fill(0),
 };
 let currentDay = 0;
 let currentView = 'chart';
@@ -104,21 +109,24 @@ function setDragMode(chartId, mode) {
 function resetChart(cfgId) {
   const cfg = CHART_CONFIGS.find(c => c.id === cfgId);
   if (!cfg) return;
-  const offset = currentDay * 24;
-  for (let h = 0; h < 24; h++) {
+  const offset = currentDay * SLOTS_PER_DAY;
+  for (let h = 0; h < SLOTS_PER_DAY; h++) {
     state[cfg.arr][offset + h] = originalState[cfg.arr][offset + h];
   }
   const origData = getOriginalDaySlice(cfg.arr, currentDay);
   const chart = charts[cfgId];
   chart.data.datasets[1].data = [...origData];
   chart.options.scales.y.max = Math.ceil(Math.max(...origData) * 1.5 * 10) / 10 || 1;
+  if (cfg.allowNegative) {
+    chart.options.scales.y.min = Math.floor(Math.min(...origData, 0) * 1.5 * 10) / 10;
+  }
   chart.update('none');
   renderHourlyTable(currentDay);
   updateBadge(cfgId, origData);
   showToast(`${cfg.label} resetiran na pocetne vrijednosti`);
 }
 
-fetch('Input.json')
+fetch('input_2.json')
   .then(r => r.json())
   .then(data => {
     if (data.days) DAYS = data.days;
@@ -139,7 +147,7 @@ fetch('Input.json')
 
 function init() {
   const sub = document.getElementById('hourly-sub');
-  if (sub) sub.innerHTML = `${DAYS.length} dana x 24 sata &mdash; cijene, potrosnja, solar, aFRR`;
+  if (sub) sub.innerHTML = `${DAYS.length} dana x 96 kvartala (15 min) &mdash; cijene, potrosnja, solar, aFRR`;
   renderParams();
   renderDayTabs();
   renderCopySelects();
@@ -157,7 +165,7 @@ function renderParams() {
   function paramHTML(p) {
     return `<div class="param-item">
       <div class="param-label">${p.label}</div>
-      <input class="param-input" type="number" step="${p.step}"
+      <input class="param-input" type="number" step="${p.step}" data-key="${p.key}"
         value="${state.parameters[p.key] ?? 0}"
         onchange="state.parameters['${p.key}'] = parseFloat(this.value) || 0">
       <div class="param-hint">${p.hint}</div>
@@ -216,13 +224,14 @@ function selectDay(d) {
 }
 
 function renderHourlyTable(day) {
-  const offset = day * 24;
+  const offset = day * SLOTS_PER_DAY;
   const tbody = document.getElementById('hourly-body');
   let html = '';
-  for (let h = 0; h < 24; h++) {
+  for (let h = 0; h < SLOTS_PER_DAY; h++) {
     const i = offset + h;
+    const hh = Math.floor(h / 4), mm = (h % 4) * 15;
     html += `<tr>
-      <td class="hour-label">${String(h).padStart(2,'0')}:00</td>
+      <td class="hour-label">${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}</td>
       <td class="col-price"><input type="number" step="0.1" data-arr="prices" data-idx="${i}" value="${state.prices[i]}"></td>
       <td class="col-cons"><input type="number" step="0.1" data-arr="consumption" data-idx="${i}" value="${state.consumption[i]}"></td>
       <td class="col-solar"><input type="number" step="0.01" min="0" max="1" data-arr="solar" data-idx="${i}" value="${state.solar[i]}"></td>
@@ -231,6 +240,12 @@ function renderHourlyTable(day) {
     </tr>`;
   }
   tbody.innerHTML = html;
+}
+
+function saveCurrentParams() {
+  document.querySelectorAll('.param-input[data-key]').forEach(inp => {
+    state.parameters[inp.dataset.key] = parseFloat(inp.value) || 0;
+  });
 }
 
 function saveCurrentTable() {
@@ -242,23 +257,23 @@ function saveCurrentTable() {
 }
 
 const ENERGY_BADGES = {
-  'chart-cons':  { badgeId: 'badge-cons',  unit: 'MWh', mult: 1 },
-  'chart-solar': { badgeId: 'badge-solar', unit: 'MWh', mult: state.parameters.P_solar_installed || 2.5 },
+  'chart-cons':  { badgeId: 'badge-cons',  unit: 'MWh', mult: 0.25 },
+  'chart-solar': { badgeId: 'badge-solar', unit: 'MWh', mult: (state.parameters.P_solar_installed || 2.5) * 0.25 },
 };
 
 function getDaySlice(arr, day) {
-  return state[arr].slice(day * 24, day * 24 + 24);
+  return state[arr].slice(day * SLOTS_PER_DAY, day * SLOTS_PER_DAY + SLOTS_PER_DAY);
 }
 
 function getOriginalDaySlice(arr, day) {
-  return originalState[arr].slice(day * 24, day * 24 + 24);
+  return originalState[arr].slice(day * SLOTS_PER_DAY, day * SLOTS_PER_DAY + SLOTS_PER_DAY);
 }
 
 function updateBadge(cfgId, data) {
   const badge = ENERGY_BADGES[cfgId];
   if (!badge) return;
   let mult = badge.mult;
-  if (cfgId === 'chart-solar') mult = state.parameters.P_solar_installed || 2.5;
+  if (cfgId === 'chart-solar') mult = (state.parameters.P_solar_installed || 2.5) * 0.25;
   const sum = data.reduce((s, v) => s + v, 0) * mult;
 
   const arrKey = CHART_CONFIGS.find(c => c.id === cfgId).arr;
@@ -403,7 +418,7 @@ function buildAllCharts(day) {
             ticks: {
               color: '#94a3b8',
               font: { family: 'Outfit', size: 11 },
-              maxRotation: 0, autoSkip: true, maxTicksLimit: 12,
+              maxRotation: 0, autoSkip: true, maxTicksLimit: 24,
             }
           },
           y: {
@@ -500,12 +515,12 @@ function buildAllCharts(day) {
 
       function commitDrag() {
         const chart       = charts[cfg.id];
-        const offset      = currentDay * 24;
+        const offset      = currentDay * SLOTS_PER_DAY;
         const currentData = chart.data.datasets[1].data;
         const mode        = dragModes[cfg.id];
 
         if (mode === 'all') {
-          for (let h = 0; h < 24; h++) {
+          for (let h = 0; h < SLOTS_PER_DAY; h++) {
             state[cfg.arr][offset + h] = currentData[h];
             const inp = document.querySelector(`input[data-arr="${cfg.arr}"][data-idx="${offset + h}"]`);
             if (inp) inp.value = currentData[h];
@@ -572,15 +587,20 @@ function updateAllCharts(day) {
     const origData = getOriginalDaySlice(cfg.arr, day);
     chart.data.datasets[0].data = [...origData];
     chart.data.datasets[1].data = [...data];
+    chart.options.scales.y.max = Math.ceil(Math.max(...data, ...origData) * 1.5 * 10) / 10 || 1;
+    if (cfg.allowNegative) {
+      chart.options.scales.y.min = Math.floor(Math.min(...data, ...origData, 0) * 1.5 * 10) / 10;
+    }
     chart.update('none');
     updateBadge(cfg.id, data);
   });
 }
 
 function buildJSON() {
+  saveCurrentParams();
   saveCurrentTable();
   return {
-    description: `Hourly electricity prices and factory consumption, ${DAYS.length} days x 24 hours`,
+    description: `Electricity prices and factory consumption, ${DAYS.length} days x 96 quarters (15 min)`,
     days: DAYS,
     price_unit: "EUR/MWh",
     consumption_unit: "MW",
@@ -614,10 +634,10 @@ function downloadJSON() {
   const blob = new Blob([json], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'Input.json';
+  a.download = 'input_2.json';
   a.click();
   URL.revokeObjectURL(a.href);
-  showToast('Input.json preuzet');
+  showToast('input_2.json preuzet');
 }
 
 function saveToServer() {
@@ -627,7 +647,7 @@ function saveToServer() {
     headers: { 'Content-Type': 'application/json' },
     body: json
   }).then(r => {
-    if (r.ok) showToast('Spremljeno u Input.json');
+    if (r.ok) showToast('Spremljeno u input_2.json');
     else throw new Error();
   }).catch(() => {
     downloadJSON();
@@ -665,9 +685,9 @@ function copyDay() {
   const from = parseInt(document.getElementById('copy-from').value);
   const to = parseInt(document.getElementById('copy-to').value);
   if (from === to) return;
-  const oFrom = from * 24, oTo = to * 24;
+  const oFrom = from * SLOTS_PER_DAY, oTo = to * SLOTS_PER_DAY;
   ['prices','consumption','solar','aFRRplus','aFRRminus'].forEach(arr => {
-    for (let h = 0; h < 24; h++) state[arr][oTo + h] = state[arr][oFrom + h];
+    for (let h = 0; h < SLOTS_PER_DAY; h++) state[arr][oTo + h] = state[arr][oFrom + h];
   });
   if (currentDay === to) {
     renderHourlyTable(to);
@@ -678,9 +698,9 @@ function copyDay() {
 
 function fillZeros() {
   saveCurrentTable();
-  const offset = currentDay * 24;
+  const offset = currentDay * SLOTS_PER_DAY;
   ['prices','consumption','solar','aFRRplus','aFRRminus'].forEach(arr => {
-    for (let h = 0; h < 24; h++) state[arr][offset + h] = 0;
+    for (let h = 0; h < SLOTS_PER_DAY; h++) state[arr][offset + h] = 0;
   });
   renderHourlyTable(currentDay);
   if (currentView === 'chart') updateAllCharts(currentDay);
