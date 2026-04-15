@@ -26,7 +26,18 @@ const PARAMS_DEF = [
   { key: 'eta_discharge',     label: 'Eta praznjenje',    hint: 'Efikasnost praznjenja [0-1]',   step: 0.01 },
   { key: 'soc_min',           label: 'SOC min',           hint: 'Minimalni SOC [%]',             step: 1 },
   { key: 'soc_max',           label: 'SOC max',           hint: 'Maksimalni SOC [%]',            step: 1 },
-  { key: 'PENALTY_DEFICIT',   label: 'Penal manjak',      hint: 'Kazneni trosak [EUR/MWh]',      step: 1000 },
+  { key: 'PENALTY_DEFICIT',   label: 'Penal (Big-M)',     hint: 'Kazneni trosak [EUR/MWh]',      step: 1000 },
+];
+
+// Parametri rješavača — čuvaju se u data.solver (odvojeno od data.parameters)
+const SOLVER_DEF = [
+  { key: 'time_limit',                   label: 'Maks. trajanje',     hint: 'Vremenski limit solvera [s]',             step: 10,   default: 300 },
+  { key: 'mip_rel_gap',                  label: 'MIP rel. jaz',       hint: 'Relativni MIP gap (npr. 0.0001 = 0,01%)', step: 0.0001, default: 0.0001 },
+  { key: 'mip_abs_gap',                  label: 'MIP abs. jaz',       hint: 'Apsolutni MIP gap [EUR]',                 step: 1e-7, default: 1e-6 },
+  { key: 'mip_feasibility_tolerance',    label: 'MIP tol. integr.',   hint: 'Tolerancija integralnosti bin. var.',      step: 1e-7, default: 1e-6 },
+  { key: 'primal_feasibility_tolerance', label: 'Primalna tol.',      hint: 'Max krsenje ogranicenja',                 step: 1e-8, default: 1e-7 },
+  { key: 'dual_feasibility_tolerance',   label: 'Dualna tol.',        hint: 'Preciznost dualnog rjesenja',             step: 1e-8, default: 1e-7 },
+  { key: 'mip_max_nodes',                label: 'Maks. B&B cvorova',  hint: 'Max broj Branch-and-Bound cvorova',       step: 10000, default: 2147483647 },
 ];
 
 const CHART_CONFIGS = [
@@ -40,6 +51,7 @@ const CHART_CONFIGS = [
 const TOTAL_SLOTS = 14 * SLOTS_PER_DAY;
 let state = {
   parameters: {},
+  solver: Object.fromEntries(SOLVER_DEF.map(d => [d.key, d.default])),
   prices: new Array(TOTAL_SLOTS).fill(0),
   consumption: new Array(TOTAL_SLOTS).fill(0),
   solar: new Array(TOTAL_SLOTS).fill(0),
@@ -154,6 +166,7 @@ fetch('input_2.json')
   .then(data => {
     if (data.days) DAYS = data.days;
     state.parameters = { ...data.parameters };
+    if (data.solver) state.solver = { ...state.solver, ...data.solver };
     state.prices = [...data.prices];
     state.consumption = [...data.consumption];
     state.solar = [...data.solar];
@@ -181,33 +194,56 @@ function init() {
 
 function renderParams() {
   const container = document.getElementById('param-grid');
-  const BAT_KEYS = ['P_bat','E_bat','SOC_init','n_bat_min','eta_charge','eta_discharge','soc_min','soc_max'];
-  const batParams   = PARAMS_DEF.filter(p =>  BAT_KEYS.includes(p.key));
-  const otherParams = PARAMS_DEF.filter(p => !BAT_KEYS.includes(p.key));
+  const BAT_KEYS   = ['P_bat','E_bat','SOC_init','n_bat_min','eta_charge','eta_discharge','soc_min','soc_max'];
+  const GRID_KEYS  = ['P_grid_max','price_export'];
+  const SOLAR_KEYS = ['P_solar_installed'];
+  const OTHER_KEYS = ['PENALTY_DEFICIT'];
 
-  function paramHTML(p) {
+  const batParams   = PARAMS_DEF.filter(p => BAT_KEYS.includes(p.key));
+  const gridParams  = PARAMS_DEF.filter(p => GRID_KEYS.includes(p.key));
+  const solarParams = PARAMS_DEF.filter(p => SOLAR_KEYS.includes(p.key));
+  const otherParams = PARAMS_DEF.filter(p => OTHER_KEYS.includes(p.key));
+
+  function paramHTML(p, src) {
+    const val = src[p.key] ?? p.default ?? 0;
+    const onChange = src === state.solver
+      ? `state.solver['${p.key}'] = parseFloat(this.value)`
+      : `state.parameters['${p.key}'] = parseFloat(this.value) || 0`;
     return `<div class="param-item">
       <div class="param-label">${p.label}</div>
       <input class="param-input" type="number" step="${p.step}" data-key="${p.key}"
-        value="${state.parameters[p.key] ?? 0}"
-        onchange="state.parameters['${p.key}'] = parseFloat(this.value) || 0">
+        value="${val}" onchange="${onChange}">
       <div class="param-hint">${p.hint}</div>
     </div>`;
   }
 
-  function groupHTML(icon, iconStyle, title, params) {
+  function groupHTML(icon, iconStyle, title, params, src) {
     return `<div class="param-group">
       <div class="param-group-title">
         <span class="group-icon" style="${iconStyle}">${icon}</span>
         ${title}
       </div>
-      <div class="param-grid">${params.map(paramHTML).join('')}</div>
+      <div class="param-grid">${params.map(p => paramHTML(p, src)).join('')}</div>
     </div>`;
   }
 
+  // "Ostalo" kombinira penal (iz parameters) i sve solver parametre
+  const otherHTML = `<div class="param-group">
+    <div class="param-group-title">
+      <span class="group-icon" style="background:rgba(148,163,184,0.1);color:var(--text-muted)">&#9881;</span>
+      Ostalo
+    </div>
+    <div class="param-grid">
+      ${otherParams.map(p => paramHTML(p, state.parameters)).join('')}
+      ${SOLVER_DEF.map(p => paramHTML(p, state.solver)).join('')}
+    </div>
+  </div>`;
+
   container.innerHTML =
-    groupHTML('&#128267;', 'background:rgba(59,130,246,0.1);color:var(--blue-accent)', 'Baterija', batParams) +
-    groupHTML('&#9881;',   'background:rgba(16,185,129,0.1);color:var(--emerald)',     'Mreža i ostalo', otherParams);
+    groupHTML('&#128267;', 'background:rgba(59,130,246,0.1);color:var(--blue-accent)', 'Baterija',          batParams,   state.parameters) +
+    groupHTML('&#9889;',   'background:rgba(139,92,246,0.1);color:var(--violet)',       'Mreža',             gridParams,  state.parameters) +
+    groupHTML('&#9728;',   'background:rgba(245,158,11,0.1);color:var(--amber)',        'Solarna elektrana', solarParams, state.parameters) +
+    otherHTML;
 }
 
 function renderDayTabs() {
@@ -655,6 +691,7 @@ function buildJSON() {
       soc_min: state.parameters.soc_min,
       soc_max: state.parameters.soc_max,
     },
+    solver: { ...state.solver },
     prices: state.prices,
     consumption: state.consumption,
     aFRR_unit: "MW",
@@ -701,6 +738,7 @@ function handleFileLoad(e) {
     try {
       const data = JSON.parse(ev.target.result);
       if (data.parameters) state.parameters = { ...data.parameters };
+      if (data.solver) state.solver = { ...state.solver, ...data.solver };
       if (data.prices) { state.prices = [...data.prices]; originalState.prices = [...data.prices]; }
       if (data.consumption) { state.consumption = [...data.consumption]; originalState.consumption = [...data.consumption]; }
       if (data.solar) { state.solar = [...data.solar]; originalState.solar = [...data.solar]; }

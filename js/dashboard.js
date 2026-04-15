@@ -114,8 +114,11 @@ function renderDailyCards() {
     const cost = costOpt;
     const savings = costNoBat - costOpt;
     const gridMwh = dayData.reduce((s,h) => s + h.grid * dt, 0);
+    const deficit = dayData.reduce((s,h) => s + (h.deficit || 0) * dt, 0);
+    const hasDeficit = deficit > 0.01;
     return `
-      <div class="daily-card ${i===0?'active':''}" onclick="selectDay(${i})">
+      <div class="daily-card ${i===0?'active':''} ${hasDeficit?'has-deficit':''}" onclick="selectDay(${i})">
+        ${hasDeficit ? '<span class="deficit-warning" title="Manjak EE: ' + fmt(deficit,2) + ' MWh">&#9888;</span>' : ''}
         <div class="day-name">${dayNameWeek(i)}</div>
         <div class="day-cost">${fmt(cost,0)} EUR</div>
         <div class="day-savings">usteda ${fmt(savings,0)} EUR</div>
@@ -289,13 +292,15 @@ function renderCharts(day) {
 
   // Price Chart
   if (priceChart) priceChart.destroy();
+  const priceData = slice.map(h => h.price);
+  const priceYMin = priceData.some(v => v < 0) ? undefined : 0;
   priceChart = new Chart(document.getElementById('priceChart'), {
     type: 'line',
     data: {
       labels,
       datasets: [{
         label: 'Cijena EE',
-        data: slice.map(h=>h.price),
+        data: priceData,
         borderColor: '#8b5cf6',
         backgroundColor: 'rgba(139,92,246,0.06)',
         borderWidth: 2.5,
@@ -313,7 +318,7 @@ function renderCharts(day) {
       },
       scales: {
         x: { grid: { color: 'rgba(232,228,222,0.5)' }, ticks: { color: '#94a3b8', font: { family: 'Outfit', size: 11 }, maxRotation: 0, autoSkip: true } },
-        y: { grid: { color: 'rgba(232,228,222,0.5)' }, ticks: { color: '#94a3b8', font: { family: 'Outfit', size: 11 } }, title: { display: true, text: 'EUR/MWh', color: '#94a3b8', font: { family: 'DM Serif Display', size: 13 } } }
+        y: { min: priceYMin, grid: { color: 'rgba(232,228,222,0.5)' }, ticks: { color: '#94a3b8', font: { family: 'Outfit', size: 11 } }, title: { display: true, text: 'EUR/MWh', color: '#94a3b8', font: { family: 'DM Serif Display', size: 13 } } }
       }
     }
   });

@@ -35,11 +35,18 @@ solar_prod = [s * P_solar_inst for s in solar_norm]  # MW
 
 # Kreiranje HiGHS modela
 h = highspy.Highs()
-verbose = params.get("verbose", False)
-if verbose:
-    h.setOptionValue("output_flag", True)
-else:
-    h.setOptionValue("output_flag", False)
+
+# Opcije rješavača — čitaju se iz input_2.json["solver"]
+# Svaka opcija ima fallback na HiGHS default ako nije navedena u JSON-u.
+_solver = data.get("solver", {})
+h.setOptionValue("output_flag",                    bool(params.get("verbose", False)))
+h.setOptionValue("time_limit",                     float(_solver.get("time_limit",                     1e30)))
+h.setOptionValue("mip_rel_gap",                    float(_solver.get("mip_rel_gap",                    1e-4)))
+h.setOptionValue("mip_abs_gap",                    float(_solver.get("mip_abs_gap",                    1e-6)))
+h.setOptionValue("mip_feasibility_tolerance",      float(_solver.get("mip_feasibility_tolerance",      1e-6)))
+h.setOptionValue("primal_feasibility_tolerance",   float(_solver.get("primal_feasibility_tolerance",   1e-7)))
+h.setOptionValue("dual_feasibility_tolerance",     float(_solver.get("dual_feasibility_tolerance",     1e-7)))
+h.setOptionValue("mip_max_nodes",                  int(  _solver.get("mip_max_nodes",                  2**31 - 1)))
 
 inf = highspy.kHighsInf
 
@@ -317,8 +324,10 @@ if status == 2:  # feasible
     print(f"Ukupni manjak EE:         {E_deficit_total:,.2f} MWh")
     # Trošak bez penala za manjak
     cost_no_penalty = obj - E_deficit_total * PENALTY_DEFICIT
-    cost_no_bat = sum((p * max(c - s, 0) - price_export * max(s - c, 0)) * DT
-                      for p, c, s in zip(prices, consumption, solar_prod))
+    cost_no_bat = sum((
+        p * min(max(c - s, 0), P_grid_max)       # kupnja iz mreže ograničena s P_grid_max
+        - price_export * max(s - c, 0)            # prihod od exporta viška solara
+    ) * DT for p, c, s in zip(prices, consumption, solar_prod))
     n_days = T // SLOTS_PER_DAY
     print(f"Optimalni trošak ({n_days} dana):  {cost_no_penalty:,.2f} EUR (bez penala za manjak)")
     print(f"Trošak bez baterije:         {cost_no_bat:,.2f} EUR (bez penala za manjak)")
