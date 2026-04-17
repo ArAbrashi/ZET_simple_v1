@@ -4,8 +4,8 @@
     {
       "name": "dashboard",
       "runtimeExecutable": "C:\\Anaconda\\python.exe",
-      "runtimeArgs": ["-m", "http.server", "8080"],
-      "port": 8080
+      "runtimeArgs": ["-m", "http.server", "8002"],
+      "port": 8002
     }
   ]
 }

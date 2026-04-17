@@ -118,7 +118,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    server = http.server.HTTPServer(("", PORT), Handler)
+    server = http.server.ThreadingHTTPServer(("", PORT), Handler)
     print(f"Server pokrenut na http://localhost:{PORT}")
     print(f"Dashboard:     http://localhost:{PORT}/dashboard.html")
     print(f"Input Editor:  http://localhost:{PORT}/input-editor.html")

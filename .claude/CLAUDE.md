@@ -78,21 +78,53 @@ ZET_simple_v1/
 
 ## Design system (Meridian)
 
-All UI files follow the same visual language:
+All UI files follow the same visual language. When adding new UI components, match this style — do not introduce new colours or fonts.
 
-- **Fonts**: DM Serif Display (headings/serifs), Outfit (body/UI)
-- **Background**: Cream `#f8f6f1`
-- **Header**: Deep blue gradient with floating orbs and subtle grid texture
-- **Cards**: White background, colour-coded top borders
-- **Accent colours** (CSS variables):
-  - `--cyan` `#06b6d4`
-  - `--amber` `#f59e0b`
-  - `--emerald` `#10b981`
-  - `--violet` `#8b5cf6`
-  - `--rose` `#f43f5e`
-  - `--blue-accent` `#3b82f6`
+### Typography
+- **DM Serif Display** — headings, card titles, serif accents
+- **Outfit** — all UI text, labels, values, body copy
 
-When adding new UI components, match this style — do not introduce new colours or fonts.
+### Colours
+- **Background**: warm cream `#f8f6f1`
+- **Cards**: white `#ffffff`, with coloured `border-top` per category
+- **Text dark**: `#1e293b`
+- **Text muted**: `#94a3b8`
+- **Border**: `rgba(232,228,222,0.8)`
+
+| CSS variable | Hex | Typical use |
+|---|---|---|
+| `--cyan` | `#06b6d4` | General accent |
+| `--amber` | `#f59e0b` | Solar, warnings |
+| `--emerald` | `#10b981` | Savings, positive values |
+| `--violet` | `#8b5cf6` | Prices, grid |
+| `--rose` | `#f43f5e` | Errors, deficit, negative |
+| `--blue-accent` | `#3b82f6` | Primary interactive accent |
+
+### Header
+- Deep blue gradient background
+- Floating semi-transparent orbs (`::before` / `::after` pseudo-elements)
+- Subtle grid texture overlay
+- White/light text on dark background
+
+### Cards & components
+- `border-radius: 14px`, white background, light box-shadow
+- Coloured `border-top: 3px solid var(--accent)` to categorise cards
+- Hover: `transform: translateY(-2px)` + stronger shadow
+- Active/selected: accent-coloured border + subtle gradient background
+- Icons: Unicode characters inside small rounded containers with `background: rgba(accent, 0.1)`
+
+### Animations
+- `transition: all 0.3s ease` on interactive elements
+- Charts: `animation: false` (instant updates for drag-to-edit responsiveness)
+
+### Chart colours (consistent across dashboard and input-editor)
+- Prices / grid: violet `#8b5cf6`
+- Consumption: cyan `#0ea5e9`
+- Solar: amber `#f59e0b`
+- Battery charge: emerald `#10b981`
+- Battery discharge: rose `#f43f5e`
+- aFRR+: emerald, aFRR−: rose
+- Curtailment / deficit: diagonal hatch pattern via Canvas API `createPattern()`
 
 ---
 

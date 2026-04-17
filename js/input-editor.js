@@ -806,7 +806,17 @@ function runSimulation() {
   function closeLog(ok) {
     btn.disabled = false;
     btn.innerHTML = '&#9654; Pokreni simulaciju';
-    showToast(ok ? 'Simulacija zavrsena! Otvorite Dashboard.' : 'Greska u simulaciji.');
+    if (ok) {
+      showToast('Simulacija zavrsena!');
+      btn.innerHTML = '&#9889; Otvori Dashboard';
+      btn.onclick = () => {
+        window.open(window.location.origin + '/dashboard.html', '_blank');
+        btn.innerHTML = '&#9654; Pokreni simulaciju';
+        btn.onclick = runSimulation;
+      };
+    } else {
+      showToast('Greska u simulaciji.');
+    }
     setTimeout(() => {
       logEl.style.opacity = '0';
       setTimeout(() => { logEl.style.display = 'none'; }, 400);

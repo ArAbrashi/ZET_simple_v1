@@ -300,6 +300,10 @@ for t in range(T):
         values = [1.0, 1.0]
         h.addRow(-inf, 1.0, len(indices), indices, values)
 
+# 7) Završni SOC uvjet: SOC na kraju mora biti >= SOC_init
+#    Sprječava "varanje" optimizatora punjenjem baterije bez namjere pražnjenja.
+h.addRow(SOC_init, inf, 1, [idx_soc(T - 1)], [1.0])
+
 # Rješavanje
 h.run()
 
